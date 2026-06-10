@@ -321,4 +321,81 @@ desktop.addEventListener('contextmenu', (e) => {
         contextMenu.style.display = 'none';
     }
 });
-document.querySelectorAll('#context-menu .context
+document.querySelectorAll('#context-menu .context-item').forEach(btn => {
+    btn.onclick = () => {
+        const action = btn.dataset.action;
+        if (action === 'personalize') personalizeModal.style.display = 'block';
+        if (action === 'create-folder') {
+            const folder = { id: Date.now(), name: 'Новая папка', type: 'folder', children: [] };
+            currentDesktopItems.push(folder);
+            renderDesktop();
+            saveToFirebase();
+        }
+        if (action === 'create-file-txt') {
+            const file = { id: Date.now(), name: 'новый.txt', type: 'file', content: '' };
+            currentDesktopItems.push(file);
+            renderDesktop();
+            saveToFirebase();
+        }
+        if (action === 'create-file-doc') {
+            const file = { id: Date.now(), name: 'новый.doc', type: 'file', content: '' };
+            currentDesktopItems.push(file);
+            renderDesktop();
+            saveToFirebase();
+        }
+        contextMenu.style.display = 'none';
+    };
+});
+
+// Закрыть меню при клике вне
+document.addEventListener('click', () => {
+    contextMenu.style.display = 'none';
+    fileContextMenu.style.display = 'none';
+    startMenu.style.display = 'none';
+});
+
+// Меню Пуск
+startButton.addEventListener('click', () => {
+    startMenu.style.display = startMenu.style.display === 'none' ? 'flex' : 'none';
+});
+
+// Сохранение персонализации
+document.getElementById('save-personalize')?.addEventListener('click', () => {
+    const selectedLang = document.getElementById('system-language').value;
+    const selectedTheme = document.getElementById('system-theme').value;
+    systemConfig.language = selectedLang;
+    systemConfig.theme = selectedTheme;
+    saveToFirebase();
+    applyConfig();
+    personalizeModal.style.display = 'none';
+});
+document.querySelectorAll('.wallpapers-grid img').forEach(img => {
+    img.addEventListener('click', () => {
+        systemConfig.wallpaper = img.src;
+        applyConfig();
+        saveToFirebase();
+    });
+});
+
+// Закрытие окон
+document.querySelectorAll('.close-window').forEach(btn => {
+    btn.onclick = () => {
+        notepadWindow.style.display = 'none';
+        viewerWindow.style.display = 'none';
+    };
+});
+
+document.getElementById('save-notepad')?.addEventListener('click', () => {
+    if (window.currentEditingFile) {
+        window.currentEditingFile.content = document.getElementById('notepad-content').value;
+        saveToFirebase();
+        notepadWindow.style.display = 'none';
+    }
+});
+
+document.getElementById('setup-next')?.addEventListener('click', goToNextStep);
+document.getElementById('setup-prev')?.addEventListener('click', () => {
+    if (currentStep > 1) { currentStep--; renderSetupStep(); }
+});
+
+console.log('K-OS загружена!');
