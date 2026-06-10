@@ -5,153 +5,283 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>K-OS — Ваша виртуальная операционная система</title>
     <link rel="icon" type="image/png" href="https://i.ibb.co/20StnqXy/image.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100;14..32,200;14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
-    <!-- Firebase SDKs -->
     <script type="module" src="firebase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 
-    <!-- ЭКРАН ЗАГРУЗКИ (Win11 стиль) -->
+    <!-- ЭКРАН ЗАГРУЗКИ -->
     <div id="loading-screen">
-        <div class="loading-logo">
-            <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS Logo">
+        <div class="loading-container">
+            <div class="loading-logo-glow"></div>
+            <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS" class="loading-logo">
+            <div class="loading-spinner">
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+            </div>
+            <div class="loading-text">K-OS</div>
+            <div class="loading-subtitle">Загрузка системы...</div>
         </div>
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Загрузка K-OS...</div>
     </div>
 
-    <!-- ЭКРАН ВХОДА (если пользователь уже залогинен и пароль установлен) -->
+    <!-- ЭКРАН ВХОДА (Password) -->
     <div id="login-screen" style="display: none;">
-        <div class="glass-panel login-panel">
-            <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS" class="login-logo">
-            <h2>Вход в K-OS</h2>
-            <input type="password" id="login-password" placeholder="Пароль" class="glass-input">
-            <button id="submit-login" class="glass-button">Войти</button>
-            <button id="logout-full" class="glass-button secondary">Сменить аккаунт</button>
+        <div class="auth-wrapper">
+            <div class="auth-background">
+                <div class="gradient-orb orb-1"></div>
+                <div class="gradient-orb orb-2"></div>
+                <div class="gradient-orb orb-3"></div>
+            </div>
+            <div class="auth-card glass-panel">
+                <div class="auth-icon">
+                    <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS">
+                </div>
+                <h2>Добро пожаловать назад</h2>
+                <p class="auth-subtitle">Введите пароль для входа в K-OS</p>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="login-password" placeholder="Пароль">
+                </div>
+                <button id="submit-login" class="auth-btn">Войти <i class="fas fa-arrow-right"></i></button>
+                <button id="logout-full" class="auth-link">Сменить аккаунт</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ЭКРАН РЕГИСТРАЦИИ/ВХОДА (Красивый полноэкранный) -->
+    <div id="auth-screen" style="display: none;">
+        <div class="auth-wrapper">
+            <div class="auth-background">
+                <div class="gradient-orb orb-1"></div>
+                <div class="gradient-orb orb-2"></div>
+                <div class="gradient-orb orb-3"></div>
+            </div>
+            
+            <div class="auth-container">
+                <!-- Левая панель с приветствием -->
+                <div class="auth-hero">
+                    <div class="hero-content">
+                        <div class="hero-logo">
+                            <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS">
+                        </div>
+                        <h1>K-OS</h1>
+                        <p>Виртуальная операционная система нового поколения</p>
+                        <div class="hero-features">
+                            <div class="feature"><i class="fas fa-cloud-upload-alt"></i> Облачный рабочий стол</div>
+                            <div class="feature"><i class="fas fa-sync-alt"></i> Синхронизация между устройствами</div>
+                            <div class="feature"><i class="fas fa-shield-alt"></i> Безопасное хранилище</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Правая панель с формами -->
+                <div class="auth-forms">
+                    <div class="form-tabs">
+                        <button class="tab-btn active" data-tab="login">Вход</button>
+                        <button class="tab-btn" data-tab="register">Регистрация</button>
+                    </div>
+                    
+                    <!-- Форма входа -->
+                    <div id="login-form" class="auth-form active">
+                        <div class="input-icon-group">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" id="auth-email" placeholder="Электронная почта">
+                        </div>
+                        <div class="input-icon-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="auth-password" placeholder="Пароль">
+                        </div>
+                        <button id="do-login" class="auth-btn primary">Войти в систему <i class="fas fa-arrow-right"></i></button>
+                    </div>
+                    
+                    <!-- Форма регистрации -->
+                    <div id="register-form" class="auth-form">
+                        <div class="input-icon-group">
+                            <i class="fas fa-user"></i>
+                            <input type="text" id="reg-name" placeholder="Ваше имя">
+                        </div>
+                        <div class="input-icon-group">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" id="reg-email" placeholder="Электронная почта">
+                        </div>
+                        <div class="input-icon-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="reg-password" placeholder="Пароль">
+                        </div>
+                        <div class="input-icon-group">
+                            <i class="fas fa-check-circle"></i>
+                            <input type="password" id="reg-confirm" placeholder="Подтвердите пароль">
+                        </div>
+                        <button id="do-register" class="auth-btn primary">Создать аккаунт <i class="fas fa-user-plus"></i></button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- ЭКРАН НАСТРОЙКИ (6 шагов) -->
     <div id="setup-screen" style="display: none;">
-        <div class="setup-container glass-panel">
-            <div class="setup-progress">
-                <div class="progress-bar" id="setup-progress-bar"></div>
+        <div class="setup-wrapper">
+            <div class="setup-background">
+                <div class="setup-blur"></div>
             </div>
-            <div id="setup-step-content"></div>
-            <div class="setup-buttons">
-                <button id="setup-prev" class="glass-button" disabled>Назад</button>
-                <button id="setup-next" class="glass-button">Далее</button>
+            <div class="setup-card glass-panel">
+                <div class="setup-progress">
+                    <div class="progress-steps">
+                        <div class="step-dot active" data-step="1">1</div>
+                        <div class="step-line"></div>
+                        <div class="step-dot" data-step="2">2</div>
+                        <div class="step-line"></div>
+                        <div class="step-dot" data-step="3">3</div>
+                        <div class="step-line"></div>
+                        <div class="step-dot" data-step="4">4</div>
+                        <div class="step-line"></div>
+                        <div class="step-dot" data-step="5">5</div>
+                        <div class="step-line"></div>
+                        <div class="step-dot" data-step="6">6</div>
+                    </div>
+                </div>
+                <div id="setup-step-content" class="setup-step-content"></div>
+                <div class="setup-buttons">
+                    <button id="setup-prev" class="setup-btn secondary">← Назад</button>
+                    <button id="setup-next" class="setup-btn primary">Далее →</button>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- ГЛАВНЫЙ РАБОЧИЙ СТОЛ -->
     <div id="desktop" style="display: none;">
-        <!-- Контекстное меню ЛКМ -->
+        <!-- Контекстное меню -->
         <div id="context-menu" class="context-menu glass-panel" style="display: none;">
-            <div class="context-item" data-action="personalize">🎨 Персонализация</div>
-            <div class="context-item" data-action="create-folder">📁 Создать папку</div>
-            <div class="context-item" data-action="create-file-txt">📄 Создать .txt</div>
-            <div class="context-item" data-action="create-file-doc">📝 Создать .doc</div>
+            <div class="context-item" data-action="personalize"><i class="fas fa-palette"></i> Персонализация</div>
+            <div class="context-item" data-action="create-folder"><i class="fas fa-folder-plus"></i> Создать папку</div>
+            <div class="context-item" data-action="create-file-txt"><i class="fas fa-file-alt"></i> Создать .txt</div>
+            <div class="context-item" data-action="create-file-doc"><i class="fas fa-file-word"></i> Создать .doc</div>
+            <div class="context-item" data-action="refresh"><i class="fas fa-sync-alt"></i> Обновить</div>
         </div>
 
-        <!-- Контекстное меню для файлов/папок -->
         <div id="file-context-menu" class="context-menu glass-panel" style="display: none;">
-            <div class="context-item" data-action="open">📂 Открыть</div>
-            <div class="context-item" data-action="rename">✏️ Переименовать</div>
-            <div class="context-item" data-action="delete">🗑️ Удалить</div>
+            <div class="context-item" data-action="open"><i class="fas fa-folder-open"></i> Открыть</div>
+            <div class="context-item" data-action="rename"><i class="fas fa-pen"></i> Переименовать</div>
+            <div class="context-item" data-action="delete"><i class="fas fa-trash"></i> Удалить</div>
         </div>
 
-        <!-- Персонализация (модальное окно) -->
-        <div id="personalize-modal" class="modal glass-panel" style="display: none;">
-            <div class="modal-header">Персонализация</div>
-            <div class="modal-body">
-                <h4>Обои (готовые)</h4>
-                <div class="wallpapers-grid">
-                    <img src="https://i.ibb.co/tgktvGq/image.png" data-wall="green">
-                    <img src="https://i.ibb.co/MDKBhmz7/image.png" data-wall="blue">
-                    <img src="https://i.ibb.co/yFybkZQG/image.png" data-wall="black">
-                    <img src="https://i.ibb.co/HTp7XgBn/image.png" data-wall="pink">
-                    <img src="https://i.pinimg.com/webp85/736x/4b/f0/82/4bf082f3b52eb027cb3d00f7e12b3a10.webp" data-wall="custom1">
-                    <img src="https://i.pinimg.com/736x/bf/68/26/bf68264201aa1198b5b50051ea8a93f7.jpg" data-wall="custom2">
-                    <img src="https://i.pinimg.com/736x/fb/fd/18/fbfd1817c607a15bd2062557d730a977.jpg" data-wall="custom3">
-                    <img src="https://i.pinimg.com/1200x/a9/63/6e/a9636e7aaf66851568faa8e58f2b04aa.jpg" data-wall="custom4">
-                    <img src="https://zefirka.club/uploads/posts/2022-10/1666059662_15-zefirka-club-p-oboi-na-pk-pinterest-temnie-19.jpg" data-wall="custom5">
-                    <img src="https://abrakadabra.fun/uploads/posts/2022-02/1644820129_3-abrakadabra-fun-p-oboi-na-rabochii-stol-pinterest-estetika-k-3.jpg" data-wall="custom6">
-                    <img src="https://99px.ru/sstorage/53/2020/06/tmb_308587_308189.jpg" data-wall="custom7">
+        <!-- Персонализация модалка -->
+        <div id="personalize-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-container glass-panel">
+                <div class="modal-header">
+                    <h3><i class="fas fa-palette"></i> Персонализация</h3>
+                    <button class="modal-close">&times;</button>
                 </div>
-                <h4>Язык системы</h4>
-                <select id="system-language" class="glass-input">
-                    <option value="ru">Русский</option>
-                    <option value="en">English</option>
-                    <option value="es">Español</option>
-                    <option value="zh">中文</option>
-                    <option value="de">Deutsch</option>
-                    <option value="fr">Français</option>
-                    <option value="pt">Português</option>
-                    <option value="ar">العربية</option>
-                    <option value="ja">日本語</option>
-                    <option value="ko">한국어</option>
-                </select>
-                <h4>Тема</h4>
-                <select id="system-theme" class="glass-input">
-                    <option value="light">Светлая</option>
-                    <option value="dark">Тёмная</option>
-                </select>
-                <button id="save-personalize" class="glass-button">Сохранить</button>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h4>Обои</h4>
+                        <div class="wallpapers-grid">
+                            <div class="wallpaper-item" data-wall="green" style="background-image: url('https://i.ibb.co/tgktvGq/image.png')"></div>
+                            <div class="wallpaper-item" data-wall="blue" style="background-image: url('https://i.ibb.co/MDKBhmz7/image.png')"></div>
+                            <div class="wallpaper-item" data-wall="black" style="background-image: url('https://i.ibb.co/yFybkZQG/image.png')"></div>
+                            <div class="wallpaper-item" data-wall="pink" style="background-image: url('https://i.ibb.co/HTp7XgBn/image.png')"></div>
+                            <div class="wallpaper-item" data-wall="custom1" style="background-image: url('https://i.pinimg.com/736x/4b/f0/82/4bf082f3b52eb027cb3d00f7e12b3a10.jpg')"></div>
+                            <div class="wallpaper-item" data-wall="custom2" style="background-image: url('https://i.pinimg.com/736x/bf/68/26/bf68264201aa1198b5b50051ea8a93f7.jpg')"></div>
+                            <div class="wallpaper-item" data-wall="custom3" style="background-image: url('https://i.pinimg.com/736x/fb/fd/18/fbfd1817c607a15bd2062557d730a977.jpg')"></div>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h4>Язык системы</h4>
+                        <select id="system-language" class="glass-select">
+                            <option value="ru">🇷🇺 Русский</option>
+                            <option value="en">🇬🇧 English</option>
+                            <option value="es">🇪🇸 Español</option>
+                            <option value="zh">🇨🇳 中文</option>
+                            <option value="de">🇩🇪 Deutsch</option>
+                            <option value="fr">🇫🇷 Français</option>
+                            <option value="pt">🇵🇹 Português</option>
+                            <option value="ar">🇸🇦 العربية</option>
+                            <option value="ja">🇯🇵 日本語</option>
+                            <option value="ko">🇰🇷 한국어</option>
+                        </select>
+                    </div>
+                    <div class="settings-section">
+                        <h4>Тема</h4>
+                        <div class="theme-switch">
+                            <button class="theme-option active" data-theme="dark">🌙 Тёмная</button>
+                            <button class="theme-option" data-theme="light">☀️ Светлая</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="save-personalize" class="auth-btn primary">Сохранить</button>
+                </div>
             </div>
         </div>
 
-        <!-- РАБОЧИЙ СТОЛ (иконки) -->
+        <!-- РАБОЧИЙ СТОЛ -->
         <div id="desktop-icons" class="desktop-icons"></div>
 
         <!-- КОРЗИНА -->
-        <div id="trash" class="desktop-icon trash-icon" draggable="false">
-            <div class="icon-img">🗑️</div>
+        <div id="trash" class="desktop-icon trash-icon">
+            <div class="icon-img"><i class="fas fa-trash-alt"></i></div>
             <div class="icon-label">Корзина</div>
         </div>
 
-        <!-- НИЖНЯЯ ПАНЕЛЬ (а-ля macOS/Windows) -->
-        <div class="dock" id="dock">
-            <div class="dock-center" id="start-button">
-                <div class="dock-icon">
+        <!-- DOCK -->
+        <div class="dock">
+            <div class="dock-blur"></div>
+            <div class="dock-items">
+                <div class="dock-item" id="start-button">
                     <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS">
+                    <span class="dock-tooltip">Меню Пуск</span>
                 </div>
             </div>
         </div>
 
-        <!-- МЕНЮ ПУСК -->
+        <!-- СТАРТ МЕНЮ -->
         <div id="start-menu" class="start-menu glass-panel" style="display: none;">
-            <div class="start-header">K-OS Меню</div>
-            <input type="text" id="start-search" placeholder="Поиск приложений..." class="glass-input">
+            <div class="start-header">
+                <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS">
+                <span>K-OS</span>
+            </div>
+            <div class="start-search">
+                <i class="fas fa-search"></i>
+                <input type="text" id="start-search" placeholder="Поиск приложений...">
+            </div>
             <div class="start-apps">
-                <h4>Приложения</h4>
-                <div class="app-list">
-                    <div class="app-item" data-app="notepad">📝 Блокнот</div>
-                    <div class="app-item" data-app="gallery">🖼️ Галерея</div>
+                <div class="apps-section">
+                    <h4>Приложения</h4>
+                    <div class="app-list">
+                        <div class="app-item" data-app="notepad"><i class="fas fa-edit"></i> Блокнот</div>
+                        <div class="app-item" data-app="gallery"><i class="fas fa-images"></i> Галерея</div>
+                    </div>
                 </div>
-                <h4>Недавние</h4>
-                <div id="recent-apps" class="app-list"></div>
+                <div class="apps-section">
+                    <h4>Недавние</h4>
+                    <div id="recent-apps" class="app-list"></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- ВИРТУАЛЬНЫЙ БЛОКНОТ -->
-    <div id="notepad-window" class="window glass-panel" style="display: none;">
+    <!-- ОКНА -->
+    <div id="notepad-window" class="floating-window glass-panel" style="display: none;">
         <div class="window-header">
-            <span>Блокнот</span>
-            <button class="close-window">✖</button>
+            <div class="window-title"><i class="fas fa-edit"></i> Блокнот</div>
+            <button class="close-window"><i class="fas fa-times"></i></button>
         </div>
         <textarea id="notepad-content" placeholder="Введите текст..."></textarea>
-        <button id="save-notepad" class="glass-button">Сохранить</button>
+        <div class="window-footer">
+            <button id="save-notepad" class="window-btn">Сохранить</button>
+        </div>
     </div>
 
-    <!-- ВИРТУАЛЬНЫЙ ПЛЕЕР (картинки) -->
-    <div id="viewer-window" class="window glass-panel" style="display: none;">
+    <div id="viewer-window" class="floating-window glass-panel" style="display: none;">
         <div class="window-header">
-            <span>Просмотр изображения</span>
-            <button class="close-window">✖</button>
+            <div class="window-title"><i class="fas fa-image"></i> Просмотр изображения</div>
+            <button class="close-window"><i class="fas fa-times"></i></button>
         </div>
         <img id="viewer-image" src="" alt="Preview">
     </div>
