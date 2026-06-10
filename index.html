@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>K-OS — Ваша виртуальная операционная система</title>
+    <link rel="icon" type="image/png" href="https://i.ibb.co/20StnqXy/image.png">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDKs -->
+    <script type="module" src="firebase-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+
+    <!-- ЭКРАН ЗАГРУЗКИ (Win11 стиль) -->
+    <div id="loading-screen">
+        <div class="loading-logo">
+            <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS Logo">
+        </div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Загрузка K-OS...</div>
+    </div>
+
+    <!-- ЭКРАН ВХОДА (если пользователь уже залогинен и пароль установлен) -->
+    <div id="login-screen" style="display: none;">
+        <div class="glass-panel login-panel">
+            <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS" class="login-logo">
+            <h2>Вход в K-OS</h2>
+            <input type="password" id="login-password" placeholder="Пароль" class="glass-input">
+            <button id="submit-login" class="glass-button">Войти</button>
+            <button id="logout-full" class="glass-button secondary">Сменить аккаунт</button>
+        </div>
+    </div>
+
+    <!-- ЭКРАН НАСТРОЙКИ (6 шагов) -->
+    <div id="setup-screen" style="display: none;">
+        <div class="setup-container glass-panel">
+            <div class="setup-progress">
+                <div class="progress-bar" id="setup-progress-bar"></div>
+            </div>
+            <div id="setup-step-content"></div>
+            <div class="setup-buttons">
+                <button id="setup-prev" class="glass-button" disabled>Назад</button>
+                <button id="setup-next" class="glass-button">Далее</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ГЛАВНЫЙ РАБОЧИЙ СТОЛ -->
+    <div id="desktop" style="display: none;">
+        <!-- Контекстное меню ЛКМ -->
+        <div id="context-menu" class="context-menu glass-panel" style="display: none;">
+            <div class="context-item" data-action="personalize">🎨 Персонализация</div>
+            <div class="context-item" data-action="create-folder">📁 Создать папку</div>
+            <div class="context-item" data-action="create-file-txt">📄 Создать .txt</div>
+            <div class="context-item" data-action="create-file-doc">📝 Создать .doc</div>
+        </div>
+
+        <!-- Контекстное меню для файлов/папок -->
+        <div id="file-context-menu" class="context-menu glass-panel" style="display: none;">
+            <div class="context-item" data-action="open">📂 Открыть</div>
+            <div class="context-item" data-action="rename">✏️ Переименовать</div>
+            <div class="context-item" data-action="delete">🗑️ Удалить</div>
+        </div>
+
+        <!-- Персонализация (модальное окно) -->
+        <div id="personalize-modal" class="modal glass-panel" style="display: none;">
+            <div class="modal-header">Персонализация</div>
+            <div class="modal-body">
+                <h4>Обои (готовые)</h4>
+                <div class="wallpapers-grid">
+                    <img src="https://i.ibb.co/tgktvGq/image.png" data-wall="green">
+                    <img src="https://i.ibb.co/MDKBhmz7/image.png" data-wall="blue">
+                    <img src="https://i.ibb.co/yFybkZQG/image.png" data-wall="black">
+                    <img src="https://i.ibb.co/HTp7XgBn/image.png" data-wall="pink">
+                    <img src="https://i.pinimg.com/webp85/736x/4b/f0/82/4bf082f3b52eb027cb3d00f7e12b3a10.webp" data-wall="custom1">
+                    <img src="https://i.pinimg.com/736x/bf/68/26/bf68264201aa1198b5b50051ea8a93f7.jpg" data-wall="custom2">
+                    <img src="https://i.pinimg.com/736x/fb/fd/18/fbfd1817c607a15bd2062557d730a977.jpg" data-wall="custom3">
+                    <img src="https://i.pinimg.com/1200x/a9/63/6e/a9636e7aaf66851568faa8e58f2b04aa.jpg" data-wall="custom4">
+                    <img src="https://zefirka.club/uploads/posts/2022-10/1666059662_15-zefirka-club-p-oboi-na-pk-pinterest-temnie-19.jpg" data-wall="custom5">
+                    <img src="https://abrakadabra.fun/uploads/posts/2022-02/1644820129_3-abrakadabra-fun-p-oboi-na-rabochii-stol-pinterest-estetika-k-3.jpg" data-wall="custom6">
+                    <img src="https://99px.ru/sstorage/53/2020/06/tmb_308587_308189.jpg" data-wall="custom7">
+                </div>
+                <h4>Язык системы</h4>
+                <select id="system-language" class="glass-input">
+                    <option value="ru">Русский</option>
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="zh">中文</option>
+                    <option value="de">Deutsch</option>
+                    <option value="fr">Français</option>
+                    <option value="pt">Português</option>
+                    <option value="ar">العربية</option>
+                    <option value="ja">日本語</option>
+                    <option value="ko">한국어</option>
+                </select>
+                <h4>Тема</h4>
+                <select id="system-theme" class="glass-input">
+                    <option value="light">Светлая</option>
+                    <option value="dark">Тёмная</option>
+                </select>
+                <button id="save-personalize" class="glass-button">Сохранить</button>
+            </div>
+        </div>
+
+        <!-- РАБОЧИЙ СТОЛ (иконки) -->
+        <div id="desktop-icons" class="desktop-icons"></div>
+
+        <!-- КОРЗИНА -->
+        <div id="trash" class="desktop-icon trash-icon" draggable="false">
+            <div class="icon-img">🗑️</div>
+            <div class="icon-label">Корзина</div>
+        </div>
+
+        <!-- НИЖНЯЯ ПАНЕЛЬ (а-ля macOS/Windows) -->
+        <div class="dock" id="dock">
+            <div class="dock-center" id="start-button">
+                <div class="dock-icon">
+                    <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS">
+                </div>
+            </div>
+        </div>
+
+        <!-- МЕНЮ ПУСК -->
+        <div id="start-menu" class="start-menu glass-panel" style="display: none;">
+            <div class="start-header">K-OS Меню</div>
+            <input type="text" id="start-search" placeholder="Поиск приложений..." class="glass-input">
+            <div class="start-apps">
+                <h4>Приложения</h4>
+                <div class="app-list">
+                    <div class="app-item" data-app="notepad">📝 Блокнот</div>
+                    <div class="app-item" data-app="gallery">🖼️ Галерея</div>
+                </div>
+                <h4>Недавние</h4>
+                <div id="recent-apps" class="app-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ВИРТУАЛЬНЫЙ БЛОКНОТ -->
+    <div id="notepad-window" class="window glass-panel" style="display: none;">
+        <div class="window-header">
+            <span>Блокнот</span>
+            <button class="close-window">✖</button>
+        </div>
+        <textarea id="notepad-content" placeholder="Введите текст..."></textarea>
+        <button id="save-notepad" class="glass-button">Сохранить</button>
+    </div>
+
+    <!-- ВИРТУАЛЬНЫЙ ПЛЕЕР (картинки) -->
+    <div id="viewer-window" class="window glass-panel" style="display: none;">
+        <div class="window-header">
+            <span>Просмотр изображения</span>
+            <button class="close-window">✖</button>
+        </div>
+        <img id="viewer-image" src="" alt="Preview">
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
