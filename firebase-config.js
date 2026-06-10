@@ -8,8 +8,7 @@ const firebaseConfig = {
     projectId: "k-os-36d06",
     storageBucket: "k-os-36d06.firebasestorage.app",
     messagingSenderId: "780326437033",
-    appId: "1:780326437033:web:cc35923088f46bbe7729b8",
-    measurementId: "G-8DYMH0JSSS"
+    appId: "1:780326437033:web:cc35923088f46bbe7729b8"
 };
 
 const app = initializeApp(firebaseConfig);
