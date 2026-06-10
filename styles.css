@@ -899,3 +899,357 @@ body {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
 }
+/* ========== АДАПТИВНОСТЬ ========== */
+
+/* Для всех экранов */
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+/* Контейнеры на всю ширину */
+.auth-container,
+.auth-wrapper,
+#auth-screen,
+#login-screen,
+#setup-screen,
+#desktop {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Левая панель с приветствием - на планшетах и телефонах скрываем */
+@media (max-width: 900px) {
+    .auth-hero {
+        display: none !important;
+    }
+    
+    .auth-forms {
+        width: 100% !important;
+        padding: 40px 20px !important;
+    }
+    
+    .auth-container {
+        flex-direction: column;
+    }
+}
+
+/* Регистрационная карточка на маленьких экранах */
+@media (max-width: 600px) {
+    .auth-card {
+        width: 90% !important;
+        margin: 0 auto;
+        padding: 30px 20px !important;
+    }
+    
+    .setup-card {
+        width: 90% !important;
+        margin: 20px;
+        padding: 20px !important;
+    }
+    
+    .modal-container {
+        width: 90% !important;
+        margin: 20px;
+    }
+    
+    .floating-window {
+        width: 90% !important;
+        left: 5% !important;
+        top: 10% !important;
+    }
+    
+    .wallpapers-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 80px)) !important;
+    }
+    
+    .dock-items {
+        padding: 5px 15px !important;
+        gap: 10px !important;
+    }
+    
+    .dock-item {
+        width: 40px !important;
+        height: 40px !important;
+    }
+    
+    .desktop-icon {
+        width: 70px !important;
+    }
+    
+    .icon-img {
+        font-size: 36px !important;
+    }
+    
+    .icon-label {
+        font-size: 10px !important;
+    }
+    
+    .start-menu {
+        width: 90% !important;
+        left: 5% !important;
+        transform: none !important;
+        bottom: 80px !important;
+    }
+}
+
+/* Для планшетов */
+@media (min-width: 601px) and (max-width: 1024px) {
+    .auth-hero {
+        flex: 0.8 !important;
+    }
+    
+    .auth-forms {
+        width: 400px !important;
+    }
+    
+    .hero-content h1 {
+        font-size: 36px !important;
+    }
+    
+    .hero-features {
+        font-size: 12px !important;
+    }
+    
+    .setup-card {
+        width: 80% !important;
+    }
+    
+    .modal-container {
+        width: 80% !important;
+    }
+    
+    .floating-window {
+        width: 70% !important;
+        left: 15% !important;
+    }
+}
+
+/* Для очень больших экранов (4K+) */
+@media (min-width: 2000px) {
+    .auth-forms {
+        width: 600px !important;
+        padding: 80px 60px !important;
+    }
+    
+    .setup-card {
+        width: 800px !important;
+        padding: 60px !important;
+    }
+    
+    .desktop-icon {
+        width: 100px !important;
+    }
+    
+    .icon-img {
+        font-size: 60px !important;
+    }
+    
+    .dock-item {
+        width: 70px !important;
+        height: 70px !important;
+    }
+    
+    .start-menu {
+        width: 500px !important;
+    }
+}
+
+/* Адаптация для ландшафтной ориентации на телефонах */
+@media (max-height: 500px) and (orientation: landscape) {
+    .auth-hero {
+        display: none !important;
+    }
+    
+    .auth-forms {
+        padding: 20px !important;
+    }
+    
+    .setup-card {
+        padding: 20px !important;
+    }
+    
+    .setup-step-content {
+        min-height: 150px !important;
+    }
+    
+    .desktop-icons {
+        bottom: 60px !important;
+    }
+    
+    .dock {
+        bottom: 10px !important;
+    }
+    
+    .trash-icon {
+        bottom: 70px !important;
+    }
+}
+
+/* Убедимся что фон занимает весь экран */
+#desktop {
+    width: 100vw;
+    height: 100vh;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* Десктопные иконки не выходят за границы */
+.desktop-icons {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    bottom: 80px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-content: flex-start;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Скролл для иконок если их много */
+.desktop-icons::-webkit-scrollbar {
+    width: 6px;
+}
+
+.desktop-icons::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+}
+
+.desktop-icons::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 10px;
+}
+
+/* Контекстное меню не вылезает за экран */
+.context-menu {
+    position: fixed;
+    max-width: 250px;
+    z-index: 10000;
+}
+
+/* Модалка с прокруткой если контента много */
+.modal-container {
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+/* Плавные переходы для всех элементов */
+* {
+    transition: all 0.2s ease;
+}
+
+/* Убираем переход для ненужных элементов */
+.dock-item img,
+.wallpaper-item {
+    transition: transform 0.2s, border 0.2s;
+}
+
+/* Центрирование загрузки на всех экранах */
+#loading-screen {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+}
+
+/* Адаптивный текст */
+@media (max-width: 600px) {
+    .hero-content h1 {
+        font-size: 28px !important;
+    }
+    
+    .hero-content p {
+        font-size: 14px !important;
+    }
+    
+    .auth-card h2 {
+        font-size: 24px !important;
+    }
+    
+    .setup-step-content h2 {
+        font-size: 20px !important;
+    }
+}
+
+/* Dock всегда по центру и видим */
+.dock {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.dock-items {
+    pointer-events: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* Корзина всегда видна справа внизу */
+.trash-icon {
+    position: absolute;
+    bottom: 100px;
+    right: 20px;
+    z-index: 50;
+}
+
+/* Старт меню по центру снизу */
+.start-menu {
+    position: absolute;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    max-width: 90%;
+}
+
+/* На маленьких экранах старт меню прилипает к низу */
+@media (max-width: 600px) {
+    .start-menu {
+        bottom: 80px;
+        left: 5%;
+        transform: none;
+        width: 90%;
+    }
+}
+
+/* Окна не выходят за пределы экрана */
+.floating-window {
+    position: fixed;
+    max-width: 90%;
+    max-height: 90%;
+    overflow: auto;
+}
+
+/* Убираем полосу прокрутки у body */
+body {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+}
