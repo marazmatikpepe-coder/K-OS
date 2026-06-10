@@ -336,24 +336,44 @@ document.querySelectorAll('#context-menu .context-item').forEach(btn => {
 
 // ========== AUTH STATE ==========
 onAuthStateChanged(auth, async (user) => {
-    showLoading(true);
-    setTimeout(async () => {
+    console.log("Auth state changed:", user ? "Пользователь есть" : "Нет пользователя");
+    
+    try {
         if (user) {
+            console.log("Загрузка данных пользователя...");
             currentUser = user;
             await loadFromFirebase();
+            console.log("Данные загружены, config:", systemConfig);
+            
             if (systemConfig.password) {
+                console.log("Показываем экран входа с паролем");
                 showScreen(loginScreen);
             } else {
+                console.log("Показываем рабочий стол");
                 showScreen(desktop);
             }
         } else {
+            console.log("Нет пользователя, показываем экран авторизации");
             currentStep = 1;
             showScreen(authScreen);
+            if (typeof renderSetupStep === 'function') {
+                renderSetupStep();
+            }
         }
+    } catch (error) {
+        console.error("Ошибка при загрузке:", error);
+        Swal.fire({
+            title: "Ошибка",
+            text: "Не удалось загрузить систему: " + error.message,
+            icon: "error",
+            background: "#1a1a2e",
+            color: "#fff"
+        });
+    } finally {
+        console.log("Скрываем загрузку");
         showLoading(false);
-    }, 1500);
+    }
 });
-
 document.getElementById('setup-next')?.addEventListener('click', nextSetupStep);
 document.getElementById('setup-prev')?.addEventListener('click', () => {
     if (currentStep > 1) { currentStep--; renderSetupStep(); }
