@@ -277,5 +277,64 @@
     </div>
 
     <script type="module" src="script.js"></script>
+        <!-- КОНСТРУКТОР ПРИЛОЖЕНИЙ -->
+    <div id="app-builder" class="modal-overlay" style="display: none;">
+        <div class="modal-container glass-panel" style="width: 700px; max-width: 95%;">
+            <div class="modal-header">
+                <h3><i class="fas fa-code"></i> Конструктор приложений</h3>
+                <button class="modal-close" onclick="document.getElementById('app-builder').style.display='none'">&times;</button>
+            </div>
+            <div class="modal-body" style="color: white;">
+                <div class="builder-form">
+                    <div class="form-group">
+                        <label>Название приложения</label>
+                        <input type="text" id="app-name" class="glass-input" placeholder="Моё приложение" style="width:100%;">
+                    </div>
+                    <div class="form-group">
+                        <label>Описание</label>
+                        <input type="text" id="app-desc" class="glass-input" placeholder="Краткое описание" style="width:100%;">
+                    </div>
+                    <div class="form-group">
+                        <label>Иконка (URL)</label>
+                        <input type="text" id="app-icon" class="glass-input" placeholder="https://example.com/icon.png" style="width:100%;">
+                    </div>
+                    <div class="form-group">
+                        <label>Тип приложения</label>
+                        <select id="app-type" class="glass-select" style="width:100%;">
+                            <option value="web">Веб-приложение (HTML/CSS/JS)</option>
+                            <option value="web">Сайт (iframe)</option>
+                            <option value="terminal">Терминальное приложение</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Код приложения</label>
+                        <textarea id="app-code" rows="10" class="glass-input" style="width:100%; font-family: monospace;" placeholder="<!DOCTYPE html>..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Стили (CSS)</label>
+                        <textarea id="app-css" rows="5" class="glass-input" style="width:100%; font-family: monospace;" placeholder="body { background: #1a1a2e; color: white; }"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button id="build-app-btn" class="auth-btn primary" style="width: auto;"><i class="fas fa-download"></i> Собрать .ky</button>
+                <button id="test-app-btn" class="auth-btn" style="width: auto; background: rgba(255,255,255,0.2);"><i class="fas fa-play"></i> Тестировать</button>
+                <button onclick="document.getElementById('app-builder').style.display='none'" class="auth-btn" style="width: auto; background: rgba(255,255,255,0.1);">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- УСТАНОВЛЕННЫЕ ПРИЛОЖЕНИЯ -->
+    <div id="installed-apps-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-container glass-panel" style="width: 500px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-th"></i> Установленные приложения</h3>
+                <button class="modal-close" onclick="document.getElementById('installed-apps-modal').style.display='none'">&times;</button>
+            </div>
+            <div class="modal-body" id="installed-apps-list" style="color: white; max-height: 400px; overflow-y: auto;">
+                <!-- Список приложений -->
+            </div>
+        </div>
+    </div>
 </body>
 </html>
