@@ -1306,3 +1306,57 @@ body {
     height: 24px;
     border-radius: 6px;
 }
+/* ========== ЗАГРУЗЧИК ИЗОБРАЖЕНИЙ ========== */
+#image-loader {
+    animation: modalSlide 0.3s ease;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+#image-loader .window-header {
+    cursor: move;
+    padding: 12px 16px;
+}
+
+#image-loader .window-header .window-title {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.window-minimize {
+    transition: all 0.2s;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.window-minimize:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+/* Анимация для загрузчика */
+@keyframes loaderPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.7; }
+}
+
+/* Стиль для имени файла с иконкой */
+.loader-file-icon {
+    display: inline-block;
+    margin-right: 6px;
+}
+
+/* Минимизированный вид */
+#image-loader.minimized {
+    width: auto !important;
+    min-width: 40px;
+    padding: 0;
+}
+
+#image-loader.minimized .window-body,
+#image-loader.minimized .loader-content {
+    display: none !important;
+}
+
+#image-loader.minimized .window-header {
+    padding: 6px 12px;
+    cursor: pointer;
+}
