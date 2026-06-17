@@ -872,5 +872,289 @@ window.uninstallApp = function(id) {
 
 // Добавляем установленные приложения в меню Пуск
 setTimeout(renderInstalledApps, 1000);
+// ========== ЗАГРУЗЧИК ИЗОБРАЖЕНИЙ ==========
+let loaderImageCount = 0;
+let isLoaderMinimized = false;
+
+function showLoader(filename = '') {
+    const loader = document.getElementById('image-loader');
+    if (!loader) return;
+    
+    loader.style.display = 'flex';
+    document.getElementById('loader-progress-text').textContent = '0%';
+    document.getElementById('loader-bar').style.width = '0%';
+    document.getElementById('loader-status').textContent = 'Начинаем загрузку...';
+    document.getElementById('loader-title').textContent = filename ? `Загрузка: ${filename}` : 'Загрузка изображения';
+    document.getElementById('loader-filename').textContent = filename || 'Обработка...';
+    
+    isLoaderMinimized = false;
+    loader.classList.remove('minimized');
+}
+
+function updateLoader(progress, status = '') {
+    const progressText = document.getElementById('loader-progress-text');
+    const bar = document.getElementById('loader-bar');
+    const statusEl = document.getElementById('loader-status');
+    
+    if (progressText) progressText.textContent = Math.round(progress) + '%';
+    if (bar) bar.style.width = Math.min(100, progress) + '%';
+    if (statusEl && status) statusEl.textContent = status;
+}
+
+function closeLoader() {
+    const loader = document.getElementById('image-loader');
+    if (loader) {
+        loader.style.display = 'none';
+        loader.classList.remove('minimized');
+    }
+}
+
+function minimizeLoader() {
+    const loader = document.getElementById('image-loader');
+    if (!loader) return;
+    
+    isLoaderMinimized = !isLoaderMinimized;
+    if (isLoaderMinimized) {
+        loader.classList.add('minimized');
+        // Меняем заголовок на маленький
+        document.getElementById('loader-title').textContent = '📷 ' + document.getElementById('loader-filename').textContent;
+    } else {
+        loader.classList.remove('minimized');
+        document.getElementById('loader-title').textContent = 'Загрузка изображения';
+    }
+}
+
+// ========== ПЕРЕТАСКИВАНИЕ ЗАГРУЗЧИКА ==========
+document.addEventListener('DOMContentLoaded', () => {
+    const loader = document.getElementById('image-loader');
+    if (!loader) return;
+    
+    let isDragging = false;
+    let offsetX, offsetY;
+    
+    loader.querySelector('.window-header').addEventListener('mousedown', (e) => {
+        if (e.target.closest('.close-window') || e.target.closest('.window-minimize')) return;
+        isDragging = true;
+        const rect = loader.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        loader.style.transform = 'none';
+        loader.style.left = rect.left + 'px';
+        loader.style.top = rect.top + 'px';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        loader.style.left = (e.clientX - offsetX) + 'px';
+        loader.style.top = (e.clientY - offsetY) + 'px';
+    });
+    
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+});
+
+// ========== НОВАЯ ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ ИЗОБРАЖЕНИЙ ==========
+async function uploadImageWithLoader(file) {
+    return new Promise((resolve, reject) => {
+        // Генерируем имя для изображения
+        loaderImageCount++;
+        const imageName = loaderImageCount === 1 ? 'изображение' : `изображение(${loaderImageCount})`;
+        
+        showLoader(imageName);
+        updateLoader(0, 'Подготовка...');
+        
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                updateLoader(30, 'Сжатие...');
+                
+                // Сжимаем изображение перед загрузкой
+                const img = new Image();
+                img.onload = async function() {
+                    updateLoader(50, 'Загрузка на сервер...');
+                    
+                    const formData = new FormData();
+                    formData.append('image', event.target.result.split(',')[1]);
+                    formData.append('key', IMGBB_KEY);
+                    
+                    const res = await fetch('https://api.imgbb.com/1/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    updateLoader(80, 'Сохранение...');
+                    const json = await res.json();
+                    
+                    if (json.success) {
+                        updateLoader(100, 'Готово!');
+                        setTimeout(() => closeLoader(), 500);
+                        resolve({
+                            url: json.data.url,
+                            name: imageName,
+                            fullName: file.name
+                        });
+                    } else {
+                        reject(new Error('Ошибка загрузки'));
+                    }
+                };
+                img.src = event.target.result;
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+        reader.readAsDataURL(file);
+    });
+}
+
+// ========== ПЕРЕХВАТ DRAG & DROP ДЛЯ ЗАГРУЗЧИКА ==========
+// Переопределяем обработку drop для изображений
+const originalDropHandler = document.body.ondrop;
+document.body.ondrop = async (e) => {
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (!files.length) return;
+    
+    const target = e.target.closest('#desktop') || e.target.closest('#desktop-icons');
+    if (!target) return;
+    
+    for (let file of files) {
+        if (file.type.startsWith('image/')) {
+            try {
+                // Загружаем с красивым загрузчиком
+                const result = await uploadImageWithLoader(file);
+                currentDesktopItems.push({
+                    id: Date.now() + Math.random(),
+                    name: result.name, // Теперь имя: "изображение", "изображение(1)" и т.д.
+                    type: 'file',
+                    content: result.url,
+                    url: result.url,
+                    originalName: result.fullName
+                });
+                renderDesktop();
+                saveToFirebase();
+            } catch (error) {
+                console.error('Ошибка загрузки:', error);
+                Swal.fire({
+                    title: 'Ошибка',
+                    text: 'Не удалось загрузить изображение',
+                    icon: 'error',
+                    background: '#1a1a2e',
+                    color: '#fff'
+                });
+                closeLoader();
+            }
+        } else {
+            // Для не-изображений используем старый метод
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                let content = event.target.result;
+                currentDesktopItems.push({
+                    id: Date.now() + Math.random(),
+                    name: file.name,
+                    type: 'file',
+                    content: content
+                });
+                renderDesktop();
+                saveToFirebase();
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+};
+
+// ========== ЗАГРУЗКА ОБОЕВ ЧЕРЕЗ ЗАГРУЗЧИК ==========
+// Переопределяем загрузку обоев
+document.querySelector('[data-action="upload-wallpaper"]')?.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        try {
+            const result = await uploadImageWithLoader(file);
+            systemConfig.wallpaper = result.url;
+            applyConfig();
+            saveToFirebase();
+            
+            Swal.fire({
+                title: 'Успешно!',
+                text: 'Обои обновлены',
+                icon: 'success',
+                background: '#1a1a2e',
+                color: '#fff',
+                timer: 1500
+            });
+        } catch (error) {
+            console.error('Ошибка загрузки обоев:', error);
+            Swal.fire({
+                title: 'Ошибка',
+                text: 'Не удалось загрузить обои',
+                icon: 'error',
+                background: '#1a1a2e',
+                color: '#fff'
+            });
+            closeLoader();
+        }
+    };
+    input.click();
+    document.getElementById('context-menu').style.display = 'none';
+});
+
+// ========== ОБНОВЛЯЕМ РЕНДЕР ДЕСКТОПА (показываем оригинальное имя в подсказке) ==========
+const oldRenderDesktop = renderDesktop;
+renderDesktop = function() {
+    const container = document.getElementById('desktop-icons');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    currentDesktopItems.forEach(item => {
+        const icon = document.createElement('div');
+        icon.className = 'desktop-icon';
+        icon.setAttribute('data-id', item.id);
+        icon.setAttribute('draggable', 'true');
+        
+        if (item.x !== undefined && item.y !== undefined) {
+            icon.style.position = 'absolute';
+            icon.style.left = item.x + 'px';
+            icon.style.top = item.y + 'px';
+        }
+        
+        // Показываем оригинальное имя если есть
+        const displayName = item.originalName || item.name;
+        const titleAttr = item.originalName ? `title="${item.originalName}"` : '';
+        
+        icon.innerHTML = `
+            <div class="icon-img">${item.type === 'folder' ? '<i class="fas fa-folder"></i>' : (item.url ? '<i class="fas fa-image"></i>' : '<i class="fas fa-file"></i>')}</div>
+            <div class="icon-label">${item.name}</div>
+        `;
+        icon.setAttribute('title', displayName);
+        
+        icon.onclick = () => {
+            if (item.type === 'folder') {
+                Swal.fire({
+                    title: item.name,
+                    text: 'Папка открыта (демо)',
+                    background: '#1a1a2e',
+                    color: '#fff'
+                });
+            } else {
+                openFile(item);
+            }
+        };
+        
+        icon.oncontextmenu = (e) => {
+            e.preventDefault();
+            showFileContextMenu(e.pageX, e.pageY, item);
+        };
+        
+        container.appendChild(icon);
+    });
+};
+
+console.log('✅ Загрузчик изображений активирован!');
 console.log('✅ K-OS обновлён с новыми функциями!');
 console.log('✨ K-OS загружена!');
