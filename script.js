@@ -618,6 +618,259 @@ renderDesktop = function() {
     
     if (originalRenderDesktop) originalRenderDesktop();
 };
+// ========== КОНСТРУКТОР ПРИЛОЖЕНИЙ ==========
+let installedApps = JSON.parse(localStorage.getItem('k-os-apps') || '[]');
 
+function saveInstalledApps() {
+    localStorage.setItem('k-os-apps', JSON.stringify(installedApps));
+}
+
+// Добавляем кнопку "Создать приложение" в меню Пуск
+document.addEventListener('DOMContentLoaded', () => {
+    const appList = document.querySelector('.app-list');
+    if (appList) {
+        const createAppBtn = document.createElement('div');
+        createAppBtn.className = 'app-item';
+        createAppBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Создать приложение';
+        createAppBtn.onclick = () => {
+            document.getElementById('app-builder').style.display = 'flex';
+            document.getElementById('start-menu').style.display = 'none';
+        };
+        appList.appendChild(createAppBtn);
+        
+        const installedBtn = document.createElement('div');
+        installedBtn.className = 'app-item';
+        installedBtn.innerHTML = '<i class="fas fa-th"></i> Мои приложения';
+        installedBtn.onclick = () => {
+            showInstalledApps();
+            document.getElementById('start-menu').style.display = 'none';
+        };
+        appList.appendChild(installedBtn);
+    }
+});
+
+// Сборка .ky файла
+document.getElementById('build-app-btn')?.addEventListener('click', async () => {
+    const name = document.getElementById('app-name').value || 'my-app';
+    const desc = document.getElementById('app-desc').value || 'Моё приложение';
+    const icon = document.getElementById('app-icon').value || 'https://i.ibb.co/20StnqXy/image.png';
+    const code = document.getElementById('app-code').value || '<h1>Hello World</h1>';
+    const css = document.getElementById('app-css').value || '';
+
+    // Создаём манифест
+    const manifest = {
+        name: name,
+        description: desc,
+        icon: icon,
+        version: '1.0.0',
+        type: 'web',
+        created: new Date().toISOString()
+    };
+
+    // Создаём HTML файл с кодом
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${name}</title>
+    <style>${css}</style>
+</head>
+<body>
+    ${code}
+</body>
+</html>`;
+
+    // Создаём ZIP вручную через JSZip
+    try {
+        const zip = new JSZip();
+        zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+        zip.file('code/index.html', html);
+        if (icon.startsWith('http')) {
+            // Скачиваем иконку
+            const response = await fetch(icon);
+            const blob = await response.blob();
+            zip.file('icon.png', blob);
+        }
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${name.toLowerCase().replace(/ /g, '_')}.ky`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        Swal.fire({
+            title: 'Готово!',
+            text: `Приложение "${name}" собрано в .ky файл`,
+            icon: 'success',
+            background: '#1a1a2e',
+            color: '#fff'
+        });
+    } catch (error) {
+        console.error('Ошибка сборки:', error);
+        Swal.fire({
+            title: 'Ошибка',
+            text: 'Не удалось собрать приложение: ' + error.message,
+            icon: 'error',
+            background: '#1a1a2e',
+            color: '#fff'
+        });
+    }
+});
+
+// Тестирование приложения
+document.getElementById('test-app-btn')?.addEventListener('click', () => {
+    const name = document.getElementById('app-name').value || 'Тест';
+    const code = document.getElementById('app-code').value || '<h1>Hello World</h1>';
+    const css = document.getElementById('app-css').value || '';
+    
+    const win = document.createElement('div');
+    win.className = 'floating-window glass-panel';
+    win.style.cssText = 'width: 600px; height: 400px; top: 15%; left: 25%; z-index: 5000; display: flex; flex-direction: column;';
+    win.innerHTML = `
+        <div class="window-header">
+            <span>🧪 Тест: ${name}</span>
+            <button class="close-window" onclick="this.closest('.floating-window').remove()">✖</button>
+        </div>
+        <div style="flex: 1; overflow: auto; padding: 20px; background: rgba(0,0,0,0.3);">
+            <style>${css}</style>
+            ${code}
+        </div>
+    `;
+    document.body.appendChild(win);
+});
+
+// Установка .ky файла (перетаскивание)
+document.addEventListener('drop', async (e) => {
+    const files = e.dataTransfer.files;
+    for (let file of files) {
+        if (file.name.endsWith('.ky')) {
+            e.preventDefault();
+            try {
+                const zip = await JSZip.loadAsync(file);
+                const manifestFile = zip.file('manifest.json');
+                if (!manifestFile) {
+                    throw new Error('Не найден manifest.json');
+                }
+                const manifest = JSON.parse(await manifestFile.async('text'));
+                const htmlFile = zip.file('code/index.html');
+                const html = htmlFile ? await htmlFile.async('text') : '<h1>Нет кода</h1>';
+                
+                // Устанавливаем приложение
+                installedApps.push({
+                    id: Date.now(),
+                    name: manifest.name,
+                    description: manifest.description,
+                    icon: manifest.icon || 'https://i.ibb.co/20StnqXy/image.png',
+                    code: html,
+                    installed: new Date().toISOString()
+                });
+                saveInstalledApps();
+                
+                Swal.fire({
+                    title: 'Установлено!',
+                    text: `Приложение "${manifest.name}" установлено`,
+                    icon: 'success',
+                    background: '#1a1a2e',
+                    color: '#fff'
+                });
+                
+                renderInstalledApps();
+            } catch (error) {
+                console.error('Ошибка установки:', error);
+                Swal.fire({
+                    title: 'Ошибка',
+                    text: 'Не удалось установить приложение: ' + error.message,
+                    icon: 'error',
+                    background: '#1a1a2e',
+                    color: '#fff'
+                });
+            }
+        }
+    }
+});
+
+// Показать установленные приложения
+function showInstalledApps() {
+    const modal = document.getElementById('installed-apps-modal');
+    const list = document.getElementById('installed-apps-list');
+    if (!list) return;
+    
+    if (installedApps.length === 0) {
+        list.innerHTML = '<p style="opacity: 0.6; text-align: center; padding: 40px;">Нет установленных приложений</p>';
+    } else {
+        list.innerHTML = installedApps.map(app => `
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 8px;">
+                <img src="${app.icon}" style="width: 36px; height: 36px; border-radius: 8px;" onerror="this.src='https://i.ibb.co/20StnqXy/image.png'">
+                <div style="flex: 1;">
+                    <div style="font-weight: 600;">${app.name}</div>
+                    <div style="font-size: 12px; opacity: 0.6;">${app.description || 'Без описания'}</div>
+                </div>
+                <button onclick="launchApp(${app.id})" class="auth-btn" style="width: auto; padding: 6px 16px; background: rgba(102,126,234,0.6);">Запустить</button>
+                <button onclick="uninstallApp(${app.id})" class="auth-btn" style="width: auto; padding: 6px 12px; background: rgba(255,0,0,0.3);">🗑️</button>
+            </div>
+        `).join('');
+    }
+    
+    modal.style.display = 'flex';
+}
+
+function renderInstalledApps() {
+    // Обновляем список в меню Пуск
+    const recentApps = document.getElementById('recent-apps');
+    if (recentApps) {
+        const recent = installedApps.slice(-3).map(app => `
+            <div class="app-item installed-app" onclick="launchApp(${app.id})">
+                <img src="${app.icon}" onerror="this.src='https://i.ibb.co/20StnqXy/image.png'" style="width: 20px; height: 20px; border-radius: 4px;">
+                ${app.name}
+            </div>
+        `).join('');
+        recentApps.innerHTML = recent || '<div style="opacity: 0.5; font-size: 13px;">Нет недавних</div>';
+    }
+}
+
+// Запуск приложения
+window.launchApp = function(id) {
+    const app = installedApps.find(a => a.id === id);
+    if (!app) return;
+    
+    const win = document.createElement('div');
+    win.className = 'floating-window glass-panel';
+    win.style.cssText = 'width: 700px; height: 500px; top: 10%; left: 20%; z-index: 5000; display: flex; flex-direction: column;';
+    win.innerHTML = `
+        <div class="window-header">
+            <span><img src="${app.icon}" style="width: 20px; height: 20px; border-radius: 4px; margin-right: 8px;" onerror="this.style.display='none'"> ${app.name}</span>
+            <button class="close-window" onclick="this.closest('.floating-window').remove()">✖</button>
+        </div>
+        <div style="flex: 1; overflow: auto; padding: 0; background: rgba(0,0,0,0.3);">
+            ${app.code}
+        </div>
+    `;
+    document.body.appendChild(win);
+};
+
+// Удаление приложения
+window.uninstallApp = function(id) {
+    Swal.fire({
+        title: 'Удалить приложение?',
+        text: 'Это действие нельзя отменить',
+        icon: 'warning',
+        background: '#1a1a2e',
+        color: '#fff',
+        showCancelButton: true,
+        confirmButtonText: 'Удалить',
+        cancelButtonText: 'Отмена'
+    }).then(result => {
+        if (result.isConfirmed) {
+            installedApps = installedApps.filter(a => a.id !== id);
+            saveInstalledApps();
+            showInstalledApps();
+            renderInstalledApps();
+        }
+    });
+};
+
+// Добавляем установленные приложения в меню Пуск
+setTimeout(renderInstalledApps, 1000);
 console.log('✅ K-OS обновлён с новыми функциями!');
 console.log('✨ K-OS загружена!');
