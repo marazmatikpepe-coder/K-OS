@@ -1253,3 +1253,56 @@ body {
     width: 100%;
     height: 100%;
 }
+/* ========== КОНСТРУКТОР ПРИЛОЖЕНИЙ ========== */
+.builder-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.builder-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.builder-form .form-group label {
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+.builder-form .glass-input,
+.builder-form .glass-select {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 10px 14px;
+    color: white;
+    font-size: 14px;
+}
+
+.builder-form .glass-input:focus,
+.builder-form .glass-select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.builder-form textarea.glass-input {
+    resize: vertical;
+    min-height: 100px;
+    font-family: 'Courier New', monospace;
+}
+
+/* Приложения в меню Пуск */
+.app-item.installed-app {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.app-item.installed-app img {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+}
