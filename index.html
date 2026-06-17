@@ -337,5 +337,34 @@
             </div>
         </div>
     </div>
+        <!-- ЗАГРУЗЧИК ИЗОБРАЖЕНИЙ -->
+    <div id="image-loader" class="floating-window glass-panel" style="display: none; width: 300px; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
+        <div class="window-header" style="cursor: move;">
+            <div class="window-title" style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-image" style="color: #667eea;"></i>
+                <span id="loader-title">Загрузка изображения</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="window-minimize" onclick="minimizeLoader()" style="background: none; border: none; color: white; cursor: pointer; font-size: 16px;">➖</button>
+                <button class="close-window" onclick="closeLoader()" style="background: none; border: none; color: white; cursor: pointer; font-size: 16px;">✖</button>
+            </div>
+        </div>
+        <div style="padding: 30px 20px; display: flex; flex-direction: column; align-items: center; gap: 20px;">
+            <div style="position: relative; width: 80px; height: 80px;">
+                <div class="loader-spinner" style="width: 80px; height: 80px; border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                    <i class="fas fa-image" style="font-size: 28px; opacity: 0.5;"></i>
+                </div>
+            </div>
+            <div style="text-align: center;">
+                <div id="loader-progress-text" style="font-size: 24px; font-weight: 700; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">0%</div>
+                <div id="loader-status" style="font-size: 13px; opacity: 0.6; margin-top: 4px;">Обработка...</div>
+            </div>
+            <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                <div id="loader-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 2px; transition: width 0.3s ease;"></div>
+            </div>
+            <div id="loader-filename" style="font-size: 12px; opacity: 0.4; font-family: monospace; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
+        </div>
+    </div>
 </body>
 </html>
