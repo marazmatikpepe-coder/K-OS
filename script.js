@@ -968,53 +968,62 @@ document.addEventListener('DOMContentLoaded', () => {
 // ========== НОВАЯ ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ ИЗОБРАЖЕНИЙ ==========
 async function uploadImageWithLoader(file) {
     return new Promise((resolve, reject) => {
-        // Генерируем имя для изображения
-        loaderImageCount++;
-        const imageName = loaderImageCount === 1 ? 'изображение' : `изображение(${loaderImageCount})`;
+        // Считаем сколько уже загружено
+        let count = parseInt(localStorage.getItem('k-os-image-count') || '0');
+        count++;
+        localStorage.setItem('k-os-image-count', String(count));
+        const imageName = count === 1 ? 'изображение' : `изображение(${count})`;
         
-        showLoader(imageName);
-        updateLoader(0, 'Подготовка...');
+        // Показываем окошко
+        document.getElementById('image-loader').style.display = 'block';
+        document.getElementById('loader-progress-text').textContent = '0%';
+        document.getElementById('loader-bar').style.width = '0%';
+        document.getElementById('loader-status').textContent = 'Подготовка...';
+        document.getElementById('loader-filename').textContent = imageName;
         
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
-                updateLoader(30, 'Сжатие...');
+                document.getElementById('loader-status').textContent = 'Загрузка...';
+                document.getElementById('loader-progress-text').textContent = '50%';
+                document.getElementById('loader-bar').style.width = '50%';
                 
-                // Сжимаем изображение перед загрузкой
-                const img = new Image();
-                img.onload = async function() {
-                    updateLoader(50, 'Загрузка на сервер...');
+                const formData = new FormData();
+                formData.append('image', event.target.result.split(',')[1]);
+                formData.append('key', IMGBB_KEY);
+                
+                const res = await fetch('https://api.imgbb.com/1/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                document.getElementById('loader-progress-text').textContent = '80%';
+                document.getElementById('loader-bar').style.width = '80%';
+                document.getElementById('loader-status').textContent = 'Сохранение...';
+                
+                const json = await res.json();
+                
+                if (json.success) {
+                    document.getElementById('loader-progress-text').textContent = '100%';
+                    document.getElementById('loader-bar').style.width = '100%';
+                    document.getElementById('loader-status').textContent = 'Готово!';
                     
-                    const formData = new FormData();
-                    formData.append('image', event.target.result.split(',')[1]);
-                    formData.append('key', IMGBB_KEY);
+                    setTimeout(() => {
+                        document.getElementById('image-loader').style.display = 'none';
+                    }, 500);
                     
-                    const res = await fetch('https://api.imgbb.com/1/upload', {
-                        method: 'POST',
-                        body: formData
+                    resolve({
+                        url: json.data.url,
+                        name: imageName,
+                        originalName: file.name
                     });
-                    
-                    updateLoader(80, 'Сохранение...');
-                    const json = await res.json();
-                    
-                    if (json.success) {
-                        updateLoader(100, 'Готово!');
-                        setTimeout(() => closeLoader(), 500);
-                        resolve({
-                            url: json.data.url,
-                            name: imageName,
-                            fullName: file.name
-                        });
-                    } else {
-                        reject(new Error('Ошибка загрузки'));
-                    }
-                };
-                img.src = event.target.result;
+                } else {
+                    reject(new Error('Ошибка загрузки'));
+                }
             } catch (error) {
                 reject(error);
             }
         };
-        reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
         reader.readAsDataURL(file);
     });
 }
