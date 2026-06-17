@@ -98,18 +98,72 @@ function openFolder(folder) {
 }
 
 function openFile(file) {
-    if (file.name.endsWith('.txt') || file.name.endsWith('.doc')) {
-        const window = document.getElementById('notepad-window');
-        window.style.display = 'block';
+    // Проверяем что это изображение
+    const isImage = file.name.match(/изображение/i) || 
+                    file.url || 
+                    file.content?.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)/i) ||
+                    file.name?.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)/i);
+    
+    if (isImage && (file.url || file.content)) {
+        const win = document.getElementById('viewer-window');
+        if (!win) return;
+        
+        win.style.display = 'flex';
+        win.style.left = '20%';
+        win.style.top = '15%';
+        win.style.width = '60%';
+        win.style.height = 'auto';
+        win.style.maxHeight = '80vh';
+        
+        const img = document.getElementById('viewer-image');
+        if (!img) return;
+        
+        // Используем url или content
+        img.src = file.url || file.content || '';
+        img.style.width = '100%';
+        img.style.height = 'auto';
+        img.style.maxHeight = '70vh';
+        img.style.objectFit = 'contain';
+        
+        // Обновляем заголовок
+        const title = win.querySelector('.window-title');
+        if (title) {
+            title.innerHTML = `<i class="fas fa-image"></i> ${file.originalName || file.name || 'Изображение'}`;
+        }
+        return;
+    }
+    
+    // Текстовые файлы
+    if (file.name?.endsWith('.txt') || file.name?.endsWith('.doc')) {
+        const win = document.getElementById('notepad-window');
+        if (!win) return;
+        
+        win.style.display = 'flex';
+        win.style.left = '25%';
+        win.style.top = '20%';
+        win.style.width = '500px';
+        win.style.height = 'auto';
+        
         document.getElementById('notepad-content').value = file.content || '';
         window.currentFile = file;
-    } else if (file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-        const window = document.getElementById('viewer-window');
-        window.style.display = 'block';
-        document.getElementById('viewer-image').src = file.content || file.path || '';
+        
+        const title = win.querySelector('.window-title');
+        if (title) {
+            title.innerHTML = `<i class="fas fa-edit"></i> ${file.name}`;
+        }
+        return;
     }
+    
+    // Если ничего не подошло
+    Swal.fire({
+        title: 'Не удалось открыть',
+        text: `Файл "${file.name}" не поддерживается для просмотра`,
+        icon: 'info',
+        background: '#1a1a2e',
+        color: '#fff',
+        timer: 2000
+    });
 }
-
 function showFileContextMenu(x, y, item) {
     const menu = document.getElementById('file-context-menu');
     menu.style.left = x + 'px';
