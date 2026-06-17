@@ -378,5 +378,246 @@ document.getElementById('setup-next')?.addEventListener('click', nextSetupStep);
 document.getElementById('setup-prev')?.addEventListener('click', () => {
     if (currentStep > 1) { currentStep--; renderSetupStep(); }
 });
+// ========== ДОБАВЛЯЕМ ПЕРЕТАСКИВАНИЕ ИКОНОК ==========
+let draggedItem = null;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
 
+document.addEventListener('dragstart', (e) => {
+    const icon = e.target.closest('.desktop-icon');
+    if (!icon) return;
+    const id = icon.dataset.id;
+    draggedItem = currentDesktopItems.find(item => item.id == id);
+    if (draggedItem) {
+        e.dataTransfer.setData('text/plain', id);
+        icon.style.opacity = '0.5';
+    }
+});
+
+document.addEventListener('dragend', (e) => {
+    const icon = e.target.closest('.desktop-icon');
+    if (icon) icon.style.opacity = '1';
+});
+
+document.getElementById('desktop-icons').addEventListener('dragover', (e) => {
+    e.preventDefault();
+});
+
+document.getElementById('desktop-icons').addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (!draggedItem) return;
+    
+    const container = document.getElementById('desktop-icons');
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    draggedItem.x = Math.max(0, x);
+    draggedItem.y = Math.max(0, y);
+    
+    saveToFirebase();
+    renderDesktop();
+    draggedItem = null;
+});
+
+// ========== ЗАГРУЗКА СВОИХ ОБОЕВ ==========
+document.querySelector('[data-action="upload-wallpaper"]')?.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            try {
+                const formData = new FormData();
+                formData.append('image', ev.target.result.split(',')[1]);
+                formData.append('key', IMGBB_KEY);
+                const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+                const json = await res.json();
+                if (json.success) {
+                    systemConfig.wallpaper = json.data.url;
+                    applyConfig();
+                    saveToFirebase();
+                    Swal.fire({
+                        title: 'Успешно!',
+                        text: 'Обои обновлены',
+                        icon: 'success',
+                        background: '#1a1a2e',
+                        color: '#fff',
+                        timer: 1500
+                    });
+                }
+            } catch (err) {
+                console.error('Ошибка загрузки обоев:', err);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+    input.click();
+    document.getElementById('context-menu').style.display = 'none';
+});
+
+// ========== ПРИВЕТСТВИЕ (HELLO) ==========
+async function showGreeting() {
+    const lang = navigator.language || 'ru';
+    const isRussian = lang.startsWith('ru');
+    const greeting = isRussian ? 'Привет' : 'Hello';
+    
+    const greetingScreen = document.getElementById('greeting-screen');
+    if (!greetingScreen) {
+        // Создаём экран приветствия если его нет
+        const div = document.createElement('div');
+        div.id = 'greeting-screen';
+        div.style.cssText = `
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0f0c29, #302b63);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 5000;
+        `;
+        div.innerHTML = `<div class="greeting-text" style="font-size: 80px; font-weight: 700; color: white; animation: fadeInScale 0.5s ease;">${greeting}</div>`;
+        document.body.appendChild(div);
+    }
+    
+    const screen = document.getElementById('greeting-screen');
+    screen.style.display = 'flex';
+    await new Promise(r => setTimeout(r, 1500));
+    screen.style.display = 'none';
+}
+
+// ========== ПРАВИЛЬНЫЙ ПОКАЗ ОБОЕВ (cover) ==========
+// Убедимся что applyConfig использует cover
+const originalApplyConfig = applyConfig;
+applyConfig = function() {
+    if (desktop) {
+        desktop.style.backgroundImage = `url(${systemConfig.wallpaper})`;
+        desktop.style.backgroundSize = 'cover';
+        desktop.style.backgroundPosition = 'center';
+        desktop.style.backgroundRepeat = 'no-repeat';
+    }
+    if (originalApplyConfig) originalApplyConfig();
+};
+
+// ========== DRAG & DROP ФАЙЛОВ С КОМПЬЮТЕРА ==========
+document.addEventListener('dragover', (e) => {
+    e.preventDefault();
+});
+
+document.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (!files.length) return;
+    
+    // Проверяем что файлы брошены на рабочий стол
+    const target = e.target.closest('#desktop') || e.target.closest('#desktop-icons');
+    if (!target) return;
+    
+    for (let file of files) {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                let content = event.target.result;
+                let url = null;
+                
+                if (file.type.startsWith('image/')) {
+                    const formData = new FormData();
+                    formData.append('image', content.split(',')[1]);
+                    formData.append('key', IMGBB_KEY);
+                    const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+                    const json = await res.json();
+                    if (json.success) {
+                        url = json.data.url;
+                        content = url;
+                    }
+                }
+                
+                currentDesktopItems.push({
+                    id: Date.now() + Math.random(),
+                    name: file.name,
+                    type: 'file',
+                    content: content,
+                    url: url
+                });
+                renderDesktop();
+                saveToFirebase();
+            } catch (err) {
+                console.error('Ошибка загрузки файла:', err);
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+// ========== ДОБАВЛЯЕМ ПУНКТ "ЗАГРУЗИТЬ СВОИ ОБОИ" В КОНТЕКСТНОЕ МЕНЮ ==========
+// Добавляем пункт в меню если его нет
+document.addEventListener('DOMContentLoaded', () => {
+    const contextMenu = document.getElementById('context-menu');
+    if (contextMenu) {
+        const existing = contextMenu.querySelector('[data-action="upload-wallpaper"]');
+        if (!existing) {
+            const item = document.createElement('div');
+            item.className = 'context-item';
+            item.dataset.action = 'upload-wallpaper';
+            item.innerHTML = '<i class="fas fa-image"></i> Загрузить свои обои';
+            contextMenu.appendChild(item);
+        }
+    }
+});
+
+// ========== ОБНОВЛЯЕМ РЕНДЕР ДЕСКТОПА С УЧЁТОМ ПОЗИЦИЙ ==========
+const originalRenderDesktop = renderDesktop;
+renderDesktop = function() {
+    const container = document.getElementById('desktop-icons');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    currentDesktopItems.forEach(item => {
+        const icon = document.createElement('div');
+        icon.className = 'desktop-icon';
+        icon.setAttribute('data-id', item.id);
+        icon.setAttribute('draggable', 'true');
+        
+        // Применяем позицию если есть
+        if (item.x !== undefined && item.y !== undefined) {
+            icon.style.position = 'absolute';
+            icon.style.left = item.x + 'px';
+            icon.style.top = item.y + 'px';
+        }
+        
+        icon.innerHTML = `
+            <div class="icon-img">${item.type === 'folder' ? '<i class="fas fa-folder"></i>' : '<i class="fas fa-file"></i>'}</div>
+            <div class="icon-label">${item.name}</div>
+        `;
+        
+        icon.onclick = () => {
+            if (item.type === 'folder') {
+                Swal.fire({
+                    title: item.name,
+                    text: 'Папка открыта (демо)',
+                    background: '#1a1a2e',
+                    color: '#fff'
+                });
+            } else {
+                openFile(item);
+            }
+        };
+        
+        icon.oncontextmenu = (e) => {
+            e.preventDefault();
+            showFileContextMenu(e.pageX, e.pageY, item);
+        };
+        
+        container.appendChild(icon);
+    });
+    
+    if (originalRenderDesktop) originalRenderDesktop();
+};
+
+console.log('✅ K-OS обновлён с новыми функциями!');
 console.log('✨ K-OS загружена!');
