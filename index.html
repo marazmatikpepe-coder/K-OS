@@ -337,18 +337,35 @@
             </div>
         </div>
     </div>
-        <!-- ЗАГРУЗЧИК ИЗОБРАЖЕНИЙ -->
-    <div id="image-loader" class="floating-window glass-panel" style="display: none; width: 300px; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
-        <div class="window-header" style="cursor: move;">
-            <div class="window-title" style="display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-image" style="color: #667eea;"></i>
-                <span id="loader-title">Загрузка изображения</span>
+      <!-- ЗАГРУЗЧИК ИЗОБРАЖЕНИЙ -->
+    <div id="image-loader" class="floating-window glass-panel" style="display: none; width: 320px; max-width: 90vw; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; overflow: hidden; border-radius: 20px;">
+        <div class="window-header" style="cursor: move; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <div class="window-title" style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;">
+                <i class="fas fa-image" style="color: #667eea; flex-shrink: 0;"></i>
+                <span id="loader-title" style="overflow: hidden; text-overflow: ellipsis;">Загрузка</span>
             </div>
-            <div style="display: flex; gap: 8px;">
-                <button class="window-minimize" onclick="minimizeLoader()" style="background: none; border: none; color: white; cursor: pointer; font-size: 16px;">➖</button>
-                <button class="close-window" onclick="closeLoader()" style="background: none; border: none; color: white; cursor: pointer; font-size: 16px;">✖</button>
+            <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                <button class="window-minimize" onclick="minimizeLoader()" style="background: none; border: none; color: rgba(255,255,255,0.6); cursor: pointer; font-size: 14px; padding: 4px 8px; border-radius: 6px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='none'">➖</button>
+                <button class="close-window" onclick="closeLoader()" style="background: none; border: none; color: rgba(255,255,255,0.6); cursor: pointer; font-size: 14px; padding: 4px 8px; border-radius: 6px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,0,0,0.2)'" onmouseout="this.style.background='none'">✖</button>
             </div>
         </div>
+        <div style="padding: 30px 24px 24px 24px; display: flex; flex-direction: column; align-items: center; gap: 16px; overflow: hidden;">
+            <div style="position: relative; width: 70px; height: 70px; flex-shrink: 0;">
+                <div class="loader-spinner" style="width: 70px; height: 70px; border: 3px solid rgba(255,255,255,0.08); border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                    <i class="fas fa-image" style="font-size: 24px; opacity: 0.3;"></i>
+                </div>
+            </div>
+            <div style="text-align: center; width: 100%;">
+                <div id="loader-progress-text" style="font-size: 28px; font-weight: 700; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">0%</div>
+                <div id="loader-status" style="font-size: 12px; opacity: 0.5; margin-top: 2px; min-height: 18px;">Подготовка...</div>
+            </div>
+            <div style="width: 100%; height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;">
+                <div id="loader-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 2px; transition: width 0.4s ease;"></div>
+            </div>
+            <div id="loader-filename" style="font-size: 11px; opacity: 0.3; font-family: monospace; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 16px; color: white;"></div>
+        </div>
+    </div>
         <div style="padding: 30px 20px; display: flex; flex-direction: column; align-items: center; gap: 20px;">
             <div style="position: relative; width: 80px; height: 80px;">
                 <div class="loader-spinner" style="width: 80px; height: 80px; border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
