@@ -1095,7 +1095,10 @@ onAuthStateChanged(auth, async (user) => {
         }
     } catch (error) {
         console.error("Ошибка при загрузке:", error);
+        // В случае ошибки тоже показываем экран авторизации
+        showScreen(authScreen);
     } finally {
+        // ГАРАНТИРОВАННО скрываем загрузку
         showLoading(false);
     }
 });
@@ -1171,4 +1174,3 @@ desktopIcons?.addEventListener('drop', (e) => {
 
 console.log('✅ K-OS полностью обновлён!');
 console.log('✅ Исправлены: движение окон, кнопки, контекстное меню, корзина');
-}
