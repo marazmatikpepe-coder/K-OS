@@ -1171,3 +1171,4 @@ desktopIcons?.addEventListener('drop', (e) => {
 
 console.log('✅ K-OS полностью обновлён!');
 console.log('✅ Исправлены: движение окон, кнопки, контекстное меню, корзина');
+}
