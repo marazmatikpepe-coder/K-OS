@@ -25,9 +25,13 @@ let systemConfig = {
     glassBorder: 0.1
 };
 let currentStep = 1;
-let setupData = {};
 let openWindows = [];
 let windowZIndex = 1000;
+let selectedFile = null;
+let isDragging = false;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
+let dragWindow = null;
 
 const loadingScreen = document.getElementById('loading-screen');
 const authScreen = document.getElementById('auth-screen');
@@ -35,7 +39,7 @@ const loginScreen = document.getElementById('login-screen');
 const setupScreen = document.getElementById('setup-screen');
 const desktop = document.getElementById('desktop');
 
-// ===== АВТОСОХРАНЕНИЕ КАЖДУЮ СЕКУНДУ =====
+// ===== АВТОСОХРАНЕНИЕ =====
 let autoSaveInterval = null;
 
 function startAutoSave() {
@@ -103,7 +107,6 @@ async function loadFromFirebase() {
 }
 
 function applyConfig() {
-    // Обои
     if (desktop) {
         desktop.style.backgroundImage = `url(${systemConfig.wallpaper})`;
         desktop.style.backgroundSize = 'cover';
@@ -111,10 +114,7 @@ function applyConfig() {
         desktop.style.backgroundRepeat = 'no-repeat';
     }
     
-    // Тема
     document.body.classList.toggle('light-theme', systemConfig.theme === 'light');
-    
-    // Жидкое стекло
     document.documentElement.style.setProperty('--glass-opacity', systemConfig.glassOpacity || 0.6);
     document.documentElement.style.setProperty('--glass-blur', (systemConfig.glassBlur || 20) + 'px');
     document.documentElement.style.setProperty('--glass-border', systemConfig.glassBorder || 0.1);
@@ -126,7 +126,6 @@ function renderDesktop() {
     if (!container) return;
     container.innerHTML = '';
     
-    // Корзина всегда на месте
     currentDesktopItems.forEach(item => {
         if (item.id === 'trash') return;
         const icon = createDesktopIcon(item);
@@ -163,12 +162,14 @@ function createDesktopIcon(item) {
     
     const isImage = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
     
+    let iconClass = 'fa-file';
+    if (item.type === 'folder') iconClass = 'fa-folder';
+    else if (isImage) iconClass = 'fa-image';
+    else if (item.name.endsWith('.txt')) iconClass = 'fa-file-alt';
+    else if (item.name.endsWith('.doc')) iconClass = 'fa-file-word';
+    
     icon.innerHTML = `
-        <div class="icon-img">${item.type === 'folder' ? '<i class="fas fa-folder"></i>' : 
-            isImage ? '<i class="fas fa-image"></i>' : 
-            item.name.endsWith('.txt') ? '<i class="fas fa-file-alt"></i>' :
-            item.name.endsWith('.doc') ? '<i class="fas fa-file-word"></i>' :
-            '<i class="fas fa-file"></i>'}</div>
+        <div class="icon-img"><i class="fas ${iconClass}"></i></div>
         <div class="icon-label">${item.name}</div>
     `;
     
@@ -181,7 +182,6 @@ function createDesktopIcon(item) {
     };
     
     icon.onclick = (e) => {
-        // Выделение иконки
         document.querySelectorAll('.desktop-icon').forEach(el => el.style.background = '');
         icon.style.background = 'rgba(255,255,255,0.1)';
     };
@@ -191,7 +191,6 @@ function createDesktopIcon(item) {
         showFileContextMenu(e.pageX, e.pageY, item);
     };
     
-    // Drag & Drop для иконок
     icon.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('text/plain', item.id);
         icon.style.opacity = '0.5';
@@ -231,33 +230,18 @@ function openImageViewer(item) {
         return;
     }
     
-    const win = document.createElement('div');
-    win.className = 'floating-window glass-panel';
-    win.dataset.fileId = item.id;
-    win.style.cssText = `width: 600px; max-width: 90%; top: 10%; left: 20%; z-index: ${windowZIndex++};`;
-    win.innerHTML = `
-        <div class="window-header" style="cursor: move;">
-            <div class="window-title"><i class="fas fa-image"></i> ${item.name}</div>
-            <div class="window-controls">
-                <button class="win-btn minimize" title="Свернуть">−</button>
-                <button class="win-btn maximize" title="На весь экран">⛶</button>
-                <button class="win-btn close" title="Закрыть">✕</button>
-            </div>
-        </div>
-        <div class="window-body" style="padding: 0; display: flex; align-items: center; justify-content: center; min-height: 300px; background: rgba(0,0,0,0.3); border-radius: 0 0 20px 20px;">
-            <img src="${item.content}" alt="${item.name}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 0 0 20px 20px;">
-        </div>
-    `;
+    const win = createWindow({
+        title: item.name,
+        icon: 'fa-image',
+        fileId: item.id,
+        width: 600,
+        height: 'auto',
+        body: `<img src="${item.content}" alt="${item.name}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 0 0 20px 20px; display: block;">`,
+        bodyStyle: 'padding: 0; display: flex; align-items: center; justify-content: center; min-height: 300px; background: rgba(0,0,0,0.3); border-radius: 0 0 20px 20px;'
+    });
     
     document.body.appendChild(win);
     openWindows.push(win);
-    setupWindowControls(win);
-    setupWindowDrag(win);
-    
-    // Закрытие при клике вне
-    win.querySelector('.win-btn.close').onclick = () => closeWindow(win);
-    win.querySelector('.win-btn.minimize').onclick = () => minimizeWindow(win);
-    win.querySelector('.win-btn.maximize').onclick = () => toggleMaximize(win);
 }
 
 // ===== БЛОКНОТ =====
@@ -268,79 +252,80 @@ function openNotepad(item) {
         return;
     }
     
-    const win = document.createElement('div');
-    win.className = 'floating-window glass-panel';
-    win.dataset.fileId = item.id;
-    win.style.cssText = `width: 550px; max-width: 90%; height: 450px; max-height: 80%; top: 10%; left: 20%; z-index: ${windowZIndex++}; display: flex; flex-direction: column;`;
-    win.innerHTML = `
-        <div class="window-header" style="cursor: move; flex-shrink: 0;">
-            <div class="window-title"><i class="fas fa-file-alt"></i> ${item.name}</div>
-            <div class="window-controls">
-                <button class="win-btn minimize">−</button>
-                <button class="win-btn maximize">⛶</button>
-                <button class="win-btn close">✕</button>
-            </div>
-        </div>
-        <div class="notepad-menu">
-            <div class="dropdown">
-                <button>Файл ▾</button>
-                <div class="dropdown-content">
-                    <button data-action="save">💾 Сохранить <span class="shortcut">Ctrl+S</span></button>
-                    <button data-action="save-as">📄 Сохранить как <span class="shortcut">Ctrl+Shift+S</span></button>
-                    <button data-action="save-desktop">🖥 Сохранить на рабочий стол <span class="shortcut">Ctrl+Alt+S</span></button>
+    const win = createWindow({
+        title: item.name,
+        icon: 'fa-file-alt',
+        fileId: item.id,
+        width: 550,
+        height: 450,
+        resizable: true,
+        body: `
+            <div class="notepad-menu">
+                <div class="dropdown">
+                    <button class="menu-btn">📄 Файл ▾</button>
+                    <div class="dropdown-content">
+                        <button data-action="save">💾 Сохранить <span class="shortcut">Ctrl+S</span></button>
+                        <button data-action="save-as">📄 Сохранить как <span class="shortcut">Ctrl+Shift+S</span></button>
+                        <button data-action="save-desktop">🖥 Сохранить на рабочий стол <span class="shortcut">Ctrl+Alt+S</span></button>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="window-body" style="flex: 1; padding: 0; display: flex; flex-direction: column;">
-            <textarea id="notepad-content-${item.id}" style="flex: 1; width: 100%; padding: 16px 20px; background: rgba(0,0,0,0.15); color: #e0e0e0; border: none; resize: none; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6; outline: none;">${item.content || ''}</textarea>
+            <textarea class="notepad-textarea" placeholder="Введите текст..." style="flex: 1; width: 100%; padding: 16px 20px; background: rgba(0,0,0,0.15); color: #e0e0e0; border: none; resize: none; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6; outline: none;">${item.content || ''}</textarea>
             <div class="notepad-status">
                 <span>Строк: ${(item.content || '').split('\n').length}</span>
                 <span>${item.name}</span>
             </div>
-        </div>
-    `;
+        `,
+        bodyStyle: 'padding: 0; display: flex; flex-direction: column; flex: 1;'
+    });
     
     document.body.appendChild(win);
     openWindows.push(win);
     
-    const textarea = win.querySelector(`#notepad-content-${item.id}`);
+    const textarea = win.querySelector('.notepad-textarea');
     
     // Сохранение
     const saveNotepad = () => {
+        if (!textarea) return;
         item.content = textarea.value;
         saveToFirebase();
-        win.querySelector('.notepad-status span:last-child').textContent = '✓ Сохранено';
-        setTimeout(() => {
-            win.querySelector('.notepad-status span:last-child').textContent = item.name;
-        }, 1500);
+        const status = win.querySelector('.notepad-status span:last-child');
+        if (status) {
+            status.textContent = '✓ Сохранено';
+            setTimeout(() => {
+                status.textContent = item.name;
+            }, 1500);
+        }
     };
     
     // Горячие клавиши
-    textarea.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.key === 's') {
-            e.preventDefault();
-            if (e.shiftKey && e.altKey) {
-                // Сохранить на рабочий стол
-                const newItem = { ...item, id: Date.now() + Math.random(), name: `копия_${item.name}` };
-                currentDesktopItems.push(newItem);
-                saveToFirebase();
-                renderDesktop();
-                Swal.fire({ title: 'Сохранено на рабочий стол', icon: 'success', timer: 1000, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
-            } else if (e.shiftKey) {
-                // Сохранить как
-                const newName = prompt('Новое имя файла:', item.name);
-                if (newName) {
-                    const newItem = { ...item, id: Date.now() + Math.random(), name: newName };
+    if (textarea) {
+        textarea.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                if (e.shiftKey && e.altKey) {
+                    // Сохранить на рабочий стол
+                    const newItem = { ...item, id: Date.now() + Math.random(), name: `копия_${item.name}` };
                     currentDesktopItems.push(newItem);
                     saveToFirebase();
                     renderDesktop();
-                    Swal.fire({ title: 'Сохранено как ' + newName, icon: 'success', timer: 1000, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+                    Swal.fire({ title: 'Сохранено на рабочий стол', icon: 'success', timer: 1000, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+                } else if (e.shiftKey) {
+                    // Сохранить как
+                    const newName = prompt('Новое имя файла:', item.name);
+                    if (newName) {
+                        const newItem = { ...item, id: Date.now() + Math.random(), name: newName };
+                        currentDesktopItems.push(newItem);
+                        saveToFirebase();
+                        renderDesktop();
+                        Swal.fire({ title: 'Сохранено как ' + newName, icon: 'success', timer: 1000, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+                    }
+                } else {
+                    saveNotepad();
                 }
-            } else {
-                saveNotepad();
             }
-        }
-    });
+        });
+    }
     
     // Кнопки меню
     win.querySelectorAll('.dropdown-content button').forEach(btn => {
@@ -366,10 +351,120 @@ function openNotepad(item) {
             }
         };
     });
-    
-    setupWindowControls(win);
-    setupWindowDrag(win);
 }
+
+// ===== СОЗДАНИЕ ОКНА (универсальное) =====
+function createWindow(options) {
+    const win = document.createElement('div');
+    win.className = 'floating-window glass-panel';
+    if (options.fileId) win.dataset.fileId = options.fileId;
+    if (options.folderId) win.dataset.folderId = options.folderId;
+    
+    const width = options.width || 500;
+    const height = options.height || 'auto';
+    win.style.cssText = `width: ${width}px; max-width: 90%; ${height !== 'auto' ? `height: ${height}px; max-height: 80%;` : ''} top: 10%; left: 20%; z-index: ${windowZIndex++}; display: flex; flex-direction: column;`;
+    
+    win.innerHTML = `
+        <div class="window-header" style="cursor: move; flex-shrink: 0; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <div class="window-title" style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
+                <i class="fas ${options.icon || 'fa-file'}"></i> ${options.title || 'Окно'}
+            </div>
+            <div class="window-controls" style="display: flex; gap: 6px;">
+                <button class="win-btn minimize" style="width: 28px; height: 28px; border: none; border-radius: 50%; cursor: pointer; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Свернуть">−</button>
+                <button class="win-btn maximize" style="width: 28px; height: 28px; border: none; border-radius: 50%; cursor: pointer; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="На весь экран">⛶</button>
+                <button class="win-btn close" style="width: 28px; height: 28px; border: none; border-radius: 50%; cursor: pointer; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Закрыть">✕</button>
+            </div>
+        </div>
+        <div class="window-body" style="${options.bodyStyle || 'padding: 16px; flex: 1; overflow: auto;'}">
+            ${options.body || ''}
+        </div>
+    `;
+    
+    // Навешиваем события на кнопки
+    const closeBtn = win.querySelector('.win-btn.close');
+    const minBtn = win.querySelector('.win-btn.minimize');
+    const maxBtn = win.querySelector('.win-btn.maximize');
+    
+    if (closeBtn) closeBtn.onclick = () => closeWindow(win);
+    if (minBtn) minBtn.onclick = () => minimizeWindow(win);
+    if (maxBtn) maxBtn.onclick = () => toggleMaximize(win);
+    
+    // Добавляем hover эффекты для кнопок
+    win.querySelectorAll('.win-btn').forEach(btn => {
+        btn.onmouseenter = () => {
+            if (btn.classList.contains('close')) {
+                btn.style.background = '#ff4444';
+                btn.style.color = 'white';
+            } else if (btn.classList.contains('maximize')) {
+                btn.style.background = '#44ff88';
+                btn.style.color = '#1a1a2e';
+            } else if (btn.classList.contains('minimize')) {
+                btn.style.background = '#ffaa44';
+                btn.style.color = '#1a1a2e';
+            }
+        };
+        btn.onmouseleave = () => {
+            btn.style.background = 'rgba(255,255,255,0.06)';
+            btn.style.color = 'rgba(255,255,255,0.6)';
+        };
+    });
+    
+    // Перетаскивание окна
+    const header = win.querySelector('.window-header');
+    if (header) {
+        header.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.win-btn') || e.target.closest('.window-controls')) return;
+            startDrag(win, e);
+        });
+    }
+    
+    return win;
+}
+
+// ===== УПРАВЛЕНИЕ ОКНАМИ =====
+function closeWindow(win) {
+    win.style.animation = 'windowAppear 0.2s reverse';
+    setTimeout(() => {
+        win.remove();
+        openWindows = openWindows.filter(w => w !== win);
+    }, 200);
+}
+
+function minimizeWindow(win) {
+    win.style.display = 'none';
+}
+
+function toggleMaximize(win) {
+    win.classList.toggle('maximized');
+}
+
+function bringToFront(win) {
+    win.style.zIndex = windowZIndex++;
+}
+
+// ===== ПЕРЕТАСКИВАНИЕ ОКОН =====
+function startDrag(win, e) {
+    isDragging = true;
+    dragWindow = win;
+    const rect = win.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+    win.style.transform = 'none';
+    win.style.left = rect.left + 'px';
+    win.style.top = rect.top + 'px';
+    bringToFront(win);
+}
+
+document.addEventListener('mousemove', (e) => {
+    if (!isDragging || !dragWindow) return;
+    dragWindow.style.left = (e.clientX - dragOffsetX) + 'px';
+    dragWindow.style.top = (e.clientY - dragOffsetY) + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+    isDragging = false;
+    dragWindow = null;
+});
 
 // ===== ПАПКИ =====
 function openFolderWindow(folder) {
@@ -379,40 +474,33 @@ function openFolderWindow(folder) {
         return;
     }
     
-    const win = document.createElement('div');
-    win.className = 'floating-window glass-panel folder-window';
-    win.dataset.folderId = folder.id;
-    win.style.cssText = `width: 500px; max-width: 90%; height: 400px; max-height: 70%; top: 10%; left: 20%; z-index: ${windowZIndex++}; display: flex; flex-direction: column;`;
-    
     const children = currentDesktopItems.filter(i => i.parentId === folder.id);
     
-    win.innerHTML = `
-        <div class="window-header" style="cursor: move; flex-shrink: 0;">
-            <div class="window-title"><i class="fas fa-folder"></i> ${folder.name}</div>
-            <div class="window-controls">
-                <button class="win-btn minimize">−</button>
-                <button class="win-btn maximize">⛶</button>
-                <button class="win-btn close">✕</button>
+    const win = createWindow({
+        title: folder.name,
+        icon: 'fa-folder',
+        folderId: folder.id,
+        width: 500,
+        height: 400,
+        body: `
+            <div class="folder-view-options" style="display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); align-items: center;">
+                <button class="view-btn active" data-view="icons" style="background: none; border: none; color: rgba(255,255,255,0.5); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;"><i class="fas fa-th"></i></button>
+                <button class="view-btn" data-view="list" style="background: none; border: none; color: rgba(255,255,255,0.5); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;"><i class="fas fa-list"></i></button>
+                <button class="view-btn" data-view="details" style="background: none; border: none; color: rgba(255,255,255,0.5); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;"><i class="fas fa-table"></i></button>
+                <span style="font-size: 12px; opacity: 0.4; margin-left: auto;">${children.length} элементов</span>
             </div>
-        </div>
-        <div class="folder-view-options">
-            <button class="active" data-view="icons"><i class="fas fa-th"></i></button>
-            <button data-view="list"><i class="fas fa-list"></i></button>
-            <button data-view="details"><i class="fas fa-table"></i></button>
-            <span class="separator"></span>
-            <span style="font-size: 12px; opacity: 0.4; margin-left: auto;">${children.length} элементов</span>
-        </div>
-        <div class="folder-content" style="flex: 1; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; overflow-y: auto; min-height: 100px;">
-            ${children.length === 0 ? '<div style="width:100%; text-align:center; opacity:0.3; padding:40px;">Папка пуста</div>' : ''}
-        </div>
-    `;
+            <div class="folder-content" style="flex: 1; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; overflow-y: auto; min-height: 100px;">
+                ${children.length === 0 ? '<div style="width:100%; text-align:center; opacity:0.3; padding:40px;">Папка пуста</div>' : ''}
+            </div>
+        `,
+        bodyStyle: 'padding: 0; display: flex; flex-direction: column; flex: 1;'
+    });
     
     document.body.appendChild(win);
     openWindows.push(win);
     
     const content = win.querySelector('.folder-content');
     
-    // Рендер содержимого папки
     function renderFolderContent(view = 'icons') {
         const items = currentDesktopItems.filter(i => i.parentId === folder.id);
         content.innerHTML = '';
@@ -443,11 +531,11 @@ function openFolderWindow(folder) {
                 content.appendChild(div);
             });
         } else {
-            // Иконки (по умолчанию)
             items.forEach(item => {
                 const icon = createDesktopIcon(item);
                 icon.style.width = '70px';
-                icon.querySelector('.icon-img').style.fontSize = '28px';
+                const img = icon.querySelector('.icon-img');
+                if (img) img.style.fontSize = '28px';
                 content.appendChild(icon);
             });
         }
@@ -456,9 +544,9 @@ function openFolderWindow(folder) {
     renderFolderContent();
     
     // Переключение вида
-    win.querySelectorAll('.folder-view-options button').forEach(btn => {
+    win.querySelectorAll('.view-btn').forEach(btn => {
         btn.onclick = () => {
-            win.querySelectorAll('.folder-view-options button').forEach(b => b.classList.remove('active'));
+            win.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             renderFolderContent(btn.dataset.view);
         };
@@ -467,47 +555,39 @@ function openFolderWindow(folder) {
     // Drag & Drop в папку
     content.addEventListener('dragover', (e) => {
         e.preventDefault();
-        content.classList.add('drag-over');
+        content.style.background = 'rgba(102, 126, 234, 0.1)';
+        content.style.border = '2px dashed rgba(102, 126, 234, 0.4)';
     });
     
     content.addEventListener('dragleave', () => {
-        content.classList.remove('drag-over');
+        content.style.background = '';
+        content.style.border = '';
     });
     
     content.addEventListener('drop', (e) => {
         e.preventDefault();
-        content.classList.remove('drag-over');
+        content.style.background = '';
+        content.style.border = '';
         
         const id = e.dataTransfer.getData('text/plain');
         if (!id) return;
         
-        // Перемещаем файл в папку
         const item = currentDesktopItems.find(i => i.id == id);
-        if (item && item.id !== folder.id && item.parentId !== folder.id) {
-            // Удаляем из старой папки
-            if (item.parentId) {
-                const oldParent = currentDesktopItems.find(i => i.id === item.parentId);
-                if (oldParent) {
-                    // Ничего не делаем
-                }
-            }
+        if (item && item.id !== folder.id) {
             item.parentId = folder.id;
             delete item.x;
             delete item.y;
             saveToFirebase();
             renderDesktop();
             renderFolderContent();
-            // Обновляем заголовок
-            const itemsCount = currentDesktopItems.filter(i => i.parentId === folder.id).length;
-            win.querySelector('.folder-view-options span:last-child').textContent = `${itemsCount} элементов`;
+            const count = currentDesktopItems.filter(i => i.parentId === folder.id).length;
+            const span = win.querySelector('.folder-view-options span:last-child');
+            if (span) span.textContent = `${count} элементов`;
         }
     });
-    
-    setupWindowControls(win);
-    setupWindowDrag(win);
 }
 
-// ===== КОРЗИНА =====
+// ===== КОРЗИНА (красивая) =====
 function openTrash() {
     const existing = document.getElementById('trash-window');
     if (existing) {
@@ -515,34 +595,32 @@ function openTrash() {
         return;
     }
     
-    const win = document.createElement('div');
-    win.id = 'trash-window';
-    win.className = 'floating-window glass-panel';
-    win.style.cssText = `width: 500px; max-width: 90%; height: 400px; max-height: 70%; top: 10%; left: 20%; z-index: ${windowZIndex++}; display: flex; flex-direction: column;`;
-    
-    win.innerHTML = `
-        <div class="window-header" style="cursor: move; flex-shrink: 0;">
-            <div class="window-title"><i class="fas fa-trash-alt"></i> Корзина</div>
-            <div class="window-controls">
-                <button class="win-btn minimize">−</button>
-                <button class="win-btn close">✕</button>
+    const win = createWindow({
+        title: 'Корзина',
+        icon: 'fa-trash-alt',
+        width: 500,
+        height: 400,
+        body: `
+            <div class="folder-content" style="flex: 1; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; overflow-y: auto; min-height: 100px;">
+                ${trashItems.length === 0 ? '<div class="empty-trash" style="width:100%; text-align:center; opacity:0.3; padding:40px; font-size: 16px;">🗑 Корзина пуста</div>' : ''}
             </div>
-        </div>
-        <div class="folder-content" style="flex: 1; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; overflow-y: auto; min-height: 100px;">
-            ${trashItems.length === 0 ? '<div class="empty-trash">Корзина пуста</div>' : ''}
-        </div>
-        <div style="padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; gap: 8px; justify-content: flex-end;">
-            <button class="win-btn" style="padding: 6px 16px; border-radius: 8px; background: rgba(255,68,68,0.2); color: #ff4444; border: none; cursor: pointer;" onclick="clearTrash()">🗑 Очистить корзину</button>
-            <button class="win-btn" style="padding: 6px 16px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer;" onclick="restoreAllTrash()">↩ Восстановить всё</button>
-        </div>
-    `;
+            <div style="padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; gap: 8px; justify-content: flex-end;">
+                <button class="trash-btn restore-all" style="padding: 6px 16px; border-radius: 8px; background: rgba(78, 205, 196, 0.15); color: #4ecdc4; border: none; cursor: pointer; font-size: 13px; transition: all 0.2s;">↩ Восстановить всё</button>
+                <button class="trash-btn clear-all" style="padding: 6px 16px; border-radius: 8px; background: rgba(255,68,68,0.15); color: #ff4444; border: none; cursor: pointer; font-size: 13px; transition: all 0.2s;">🗑 Очистить</button>
+            </div>
+        `,
+        bodyStyle: 'padding: 0; display: flex; flex-direction: column; flex: 1;'
+    });
     
+    win.id = 'trash-window';
     document.body.appendChild(win);
     openWindows.push(win);
     
     renderTrashContent(win);
-    setupWindowControls(win);
-    setupWindowDrag(win);
+    
+    // Кнопки
+    win.querySelector('.restore-all').onclick = restoreAllTrash;
+    win.querySelector('.clear-all').onclick = clearTrash;
 }
 
 function renderTrashContent(win) {
@@ -550,28 +628,36 @@ function renderTrashContent(win) {
     if (!content) return;
     
     if (trashItems.length === 0) {
-        content.innerHTML = '<div class="empty-trash">Корзина пуста</div>';
+        content.innerHTML = '<div class="empty-trash" style="width:100%; text-align:center; opacity:0.3; padding:40px; font-size: 16px;">🗑 Корзина пуста</div>';
         return;
     }
     
     content.innerHTML = '';
     trashItems.forEach(item => {
         const div = document.createElement('div');
-        div.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 6px 12px; width: 100%; border-radius: 8px; cursor: pointer; transition: all 0.2s;';
-        div.onmouseenter = () => div.style.background = 'rgba(255,255,255,0.05)';
-        div.onmouseleave = () => div.style.background = '';
+        div.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 8px 14px; width: 100%; border-radius: 10px; cursor: pointer; transition: all 0.2s; background: rgba(255,255,255,0.03);';
+        div.onmouseenter = () => div.style.background = 'rgba(255,255,255,0.08)';
+        div.onmouseleave = () => div.style.background = 'rgba(255,255,255,0.03)';
         div.innerHTML = `
-            <i class="fas fa-file"></i>
-            <span>${item.name}</span>
-            <span style="margin-left: auto; opacity: 0.3; font-size: 12px;">${item.type || 'Файл'}</span>
-            <button onclick="restoreFromTrash('${item.id}')" style="background: none; border: none; color: #4ecdc4; cursor: pointer;">↩</button>
+            <i class="fas fa-file" style="opacity: 0.5;"></i>
+            <span style="flex: 1;">${item.name}</span>
+            <span style="opacity: 0.3; font-size: 12px;">${item.type || 'Файл'}</span>
+            <button class="restore-item" data-id="${item.id}" style="background: none; border: none; color: #4ecdc4; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: all 0.2s;">↩ Восстановить</button>
         `;
         content.appendChild(div);
     });
+    
+    // Вешаем события на кнопки восстановления
+    content.querySelectorAll('.restore-item').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            restoreFromTrash(id);
+        };
+    });
 }
 
-// Глобальные функции для корзины
-window.restoreFromTrash = function(id) {
+function restoreFromTrash(id) {
     const index = trashItems.findIndex(i => i.id == id);
     if (index !== -1) {
         const item = trashItems.splice(index, 1)[0];
@@ -582,9 +668,9 @@ window.restoreFromTrash = function(id) {
         const win = document.getElementById('trash-window');
         if (win) renderTrashContent(win);
     }
-};
+}
 
-window.clearTrash = function() {
+function clearTrash() {
     Swal.fire({
         title: 'Очистить корзину?',
         text: 'Это действие нельзя отменить',
@@ -602,9 +688,10 @@ window.clearTrash = function() {
             if (win) renderTrashContent(win);
         }
     });
-};
+}
 
-window.restoreAllTrash = function() {
+function restoreAllTrash() {
+    if (trashItems.length === 0) return;
     trashItems.forEach(item => {
         delete item.parentId;
         currentDesktopItems.push(item);
@@ -614,72 +701,17 @@ window.restoreAllTrash = function() {
     renderDesktop();
     const win = document.getElementById('trash-window');
     if (win) renderTrashContent(win);
-};
-
-// ===== УПРАВЛЕНИЕ ОКНАМИ =====
-function setupWindowControls(win) {
-    win.querySelector('.win-btn.close').onclick = () => closeWindow(win);
-    win.querySelector('.win-btn.minimize').onclick = () => minimizeWindow(win);
-    const maxBtn = win.querySelector('.win-btn.maximize');
-    if (maxBtn) maxBtn.onclick = () => toggleMaximize(win);
-}
-
-function closeWindow(win) {
-    win.style.animation = 'windowAppear 0.2s reverse';
-    setTimeout(() => {
-        win.remove();
-        openWindows = openWindows.filter(w => w !== win);
-    }, 200);
-}
-
-function minimizeWindow(win) {
-    win.style.display = 'none';
-    // Можно добавить кнопку в док для восстановления
-}
-
-function toggleMaximize(win) {
-    win.classList.toggle('maximized');
-}
-
-function bringToFront(win) {
-    win.style.zIndex = windowZIndex++;
-}
-
-function setupWindowDrag(win) {
-    const header = win.querySelector('.window-header');
-    let isDragging = false;
-    let offsetX, offsetY;
-    
-    header.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.win-btn') || e.target.closest('.window-controls')) return;
-        isDragging = true;
-        const rect = win.getBoundingClientRect();
-        offsetX = e.clientX - rect.left;
-        offsetY = e.clientY - rect.top;
-        win.style.transform = 'none';
-        win.style.left = rect.left + 'px';
-        win.style.top = rect.top + 'px';
-        bringToFront(win);
-    });
-    
-    document.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        win.style.left = (e.clientX - offsetX) + 'px';
-        win.style.top = (e.clientY - offsetY) + 'px';
-    });
-    
-    document.addEventListener('mouseup', () => {
-        isDragging = false;
-    });
 }
 
 // ===== КОНТЕКСТНОЕ МЕНЮ =====
 function showFileContextMenu(x, y, item) {
-    const menu = document.getElementById('file-context-menu') || createFileContextMenu();
+    const menu = document.getElementById('file-context-menu');
+    if (!menu) return;
+    
     menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
-    menu.style.top = Math.min(y, window.innerHeight - 200) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - 180) + 'px';
     menu.style.display = 'flex';
-    window.selectedFile = item;
+    selectedFile = item;
     
     menu.querySelectorAll('.context-item').forEach(btn => {
         btn.onclick = () => {
@@ -705,52 +737,63 @@ function showFileContextMenu(x, y, item) {
     });
 }
 
-function createFileContextMenu() {
-    const menu = document.createElement('div');
-    menu.id = 'file-context-menu';
-    menu.className = 'context-menu glass-panel';
-    menu.style.display = 'none';
-    menu.innerHTML = `
-        <div class="context-item" data-action="open"><i class="fas fa-folder-open"></i> Открыть</div>
-        <div class="context-item" data-action="rename"><i class="fas fa-pen"></i> Переименовать</div>
-        <div class="context-item" data-action="delete"><i class="fas fa-trash"></i> Удалить</div>
-    `;
-    document.body.appendChild(menu);
-    return menu;
-}
-
 function showTrashContext(x, y) {
-    const menu = document.getElementById('context-menu') || createContextMenu();
+    const menu = document.getElementById('context-menu');
+    if (!menu) return;
+    
     menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
-    menu.style.top = Math.min(y, window.innerHeight - 200) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - 180) + 'px';
     menu.style.display = 'flex';
     
     menu.querySelectorAll('.context-item').forEach(btn => {
         btn.onclick = () => {
             const action = btn.dataset.action;
             if (action === 'open-trash') openTrash();
-            else if (action === 'clear-trash') window.clearTrash();
+            else if (action === 'clear-trash') clearTrash();
+            else if (action === 'personalize') {
+                document.getElementById('personalize-modal').style.display = 'flex';
+            } else if (action === 'create-folder') {
+                const name = prompt('Название папки:', 'Новая папка');
+                if (name) {
+                    currentDesktopItems.push({ id: Date.now() + Math.random(), name: name, type: 'folder' });
+                    renderDesktop();
+                    saveToFirebase();
+                }
+            } else if (action === 'create-file-txt') {
+                currentDesktopItems.push({ id: Date.now() + Math.random(), name: 'новый.txt', type: 'file', content: '' });
+                renderDesktop();
+                saveToFirebase();
+            } else if (action === 'refresh') {
+                renderDesktop();
+            }
             menu.style.display = 'none';
         };
     });
 }
 
-function createContextMenu() {
-    const menu = document.createElement('div');
-    menu.id = 'context-menu';
-    menu.className = 'context-menu glass-panel';
-    menu.style.display = 'none';
-    menu.innerHTML = `
-        <div class="context-item" data-action="open-trash"><i class="fas fa-trash-alt"></i> Открыть корзину</div>
-        <div class="context-item" data-action="clear-trash"><i class="fas fa-trash"></i> Очистить корзину</div>
-        <div class="context-item" data-action="personalize"><i class="fas fa-palette"></i> Персонализация</div>
-        <div class="context-item" data-action="create-folder"><i class="fas fa-folder-plus"></i> Создать папку</div>
-        <div class="context-item" data-action="create-file-txt"><i class="fas fa-file-alt"></i> Создать .txt</div>
-        <div class="context-item" data-action="refresh"><i class="fas fa-sync-alt"></i> Обновить</div>
-    `;
-    document.body.appendChild(menu);
-    return menu;
-}
+// ===== ПКМ ПО РАБОЧЕМУ СТОЛУ =====
+desktop?.addEventListener('contextmenu', (e) => {
+    if (e.target === desktop || e.target.id === 'desktop-icons' || e.target.closest('#desktop-icons')) {
+        e.preventDefault();
+        const menu = document.getElementById('context-menu');
+        if (menu) {
+            menu.style.left = Math.min(e.pageX, window.innerWidth - 220) + 'px';
+            menu.style.top = Math.min(e.pageY, window.innerHeight - 250) + 'px';
+            menu.style.display = 'flex';
+        }
+    }
+});
+
+// Закрытие меню по клику вне
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.context-menu')) {
+        document.getElementById('context-menu').style.display = 'none';
+        document.getElementById('file-context-menu').style.display = 'none';
+    }
+    if (!e.target.closest('#start-button') && !e.target.closest('#start-menu')) {
+        document.getElementById('start-menu').style.display = 'none';
+    }
+});
 
 // ===== DRAG & DROP ФАЙЛОВ =====
 document.addEventListener('dragover', (e) => e.preventDefault());
@@ -760,9 +803,8 @@ document.addEventListener('drop', async (e) => {
     const files = e.dataTransfer.files;
     if (!files.length) return;
     
-    const target = e.target.closest('#desktop') || e.target.closest('#desktop-icons') || e.target.closest('.folder-content');
-    const isFolder = target && target.closest('.folder-content');
-    const folderId = isFolder ? target.closest('.floating-window')?.dataset.folderId : null;
+    const target = e.target.closest('#desktop') || e.target.closest('#desktop-icons');
+    if (!target) return;
     
     for (let file of files) {
         const reader = new FileReader();
@@ -770,9 +812,8 @@ document.addEventListener('drop', async (e) => {
             try {
                 let content = event.target.result;
                 let url = null;
-                let isImage = file.type.startsWith('image/');
                 
-                if (isImage) {
+                if (file.type.startsWith('image/')) {
                     const formData = new FormData();
                     formData.append('image', content.split(',')[1]);
                     formData.append('key', IMGBB_KEY);
@@ -784,35 +825,15 @@ document.addEventListener('drop', async (e) => {
                     }
                 }
                 
-                const newItem = {
-                    id: Date.now() + Math.random() * 1000,
+                currentDesktopItems.push({
+                    id: Date.now() + Math.random(),
                     name: file.name,
                     type: 'file',
                     content: content,
                     url: url
-                };
-                
-                if (folderId) {
-                    newItem.parentId = folderId;
-                }
-                
-                currentDesktopItems.push(newItem);
+                });
                 renderDesktop();
                 saveToFirebase();
-                
-                // Обновляем открытую папку
-                if (folderId) {
-                    const folderWin = document.querySelector(`[data-folder-id="${folderId}"]`);
-                    if (folderWin) {
-                        const content = folderWin.querySelector('.folder-content');
-                        const items = currentDesktopItems.filter(i => i.parentId == folderId);
-                        folderWin.querySelector('.folder-view-options span:last-child').textContent = `${items.length} элементов`;
-                        // Перерендер содержимого
-                        const activeView = folderWin.querySelector('.folder-view-options .active');
-                        const view = activeView ? activeView.dataset.view : 'icons';
-                        renderFolderContent(folderWin, view);
-                    }
-                }
             } catch (err) {
                 console.error('Upload error:', err);
             }
@@ -823,19 +844,6 @@ document.addEventListener('drop', async (e) => {
 
 // ===== ПЕРСОНАЛИЗАЦИЯ =====
 document.addEventListener('DOMContentLoaded', () => {
-    const personalizeBtn = document.querySelector('[data-action="personalize"]');
-    if (personalizeBtn) {
-        personalizeBtn.addEventListener('click', () => {
-            document.getElementById('personalize-modal').style.display = 'flex';
-            document.getElementById('context-menu').style.display = 'none';
-        });
-    }
-    
-    // Закрытие модалки
-    document.querySelector('.modal-close')?.addEventListener('click', () => {
-        document.getElementById('personalize-modal').style.display = 'none';
-    });
-    
     // Обои
     document.querySelectorAll('.wallpaper-item').forEach(item => {
         item.onclick = () => {
@@ -847,8 +855,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
     
-    // Выбор языка (красивый)
-    const langContainer = document.querySelector('.language-selector') || createLanguageSelector();
+    // Язык
+    document.querySelectorAll('.lang-option').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.lang-option').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            systemConfig.language = btn.dataset.lang;
+        };
+    });
     
     // Тема
     document.querySelectorAll('.theme-option').forEach(opt => {
@@ -860,7 +874,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
     
-    // Ползунок жидкого стекла
+    // Жидкое стекло
     const glassSlider = document.getElementById('glass-intensity');
     if (glassSlider) {
         glassSlider.value = systemConfig.glassOpacity * 100 || 60;
@@ -873,8 +887,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Сохранение
     document.getElementById('save-personalize')?.addEventListener('click', () => {
-        const lang = document.querySelector('.lang-option.active')?.dataset.lang || systemConfig.language;
-        systemConfig.language = lang;
         saveToFirebase();
         document.getElementById('personalize-modal').style.display = 'none';
         Swal.fire({
@@ -887,49 +899,18 @@ document.addEventListener('DOMContentLoaded', () => {
             color: '#fff'
         });
     });
+    
+    // Закрытие модалки
+    document.querySelector('.modal-close')?.addEventListener('click', () => {
+        document.getElementById('personalize-modal').style.display = 'none';
+    });
 });
 
-function createLanguageSelector() {
-    const section = document.querySelector('.settings-section:has(h4:contains("Язык"))');
-    if (!section) return null;
-    
-    const container = document.createElement('div');
-    container.className = 'language-selector';
-    
-    const languages = [
-        { code: 'ru', label: '🇷🇺 Русский' },
-        { code: 'en', label: '🇬🇧 English' },
-        { code: 'es', label: '🇪🇸 Español' },
-        { code: 'zh', label: '🇨🇳 中文' },
-        { code: 'de', label: '🇩🇪 Deutsch' },
-        { code: 'fr', label: '🇫🇷 Français' },
-        { code: 'pt', label: '🇵🇹 Português' },
-        { code: 'ar', label: '🇸🇦 العربية' },
-        { code: 'ja', label: '🇯🇵 日本語' },
-        { code: 'ko', label: '🇰🇷 한국어' }
-    ];
-    
-    languages.forEach(lang => {
-        const btn = document.createElement('button');
-        btn.className = `lang-option ${systemConfig.language === lang.code ? 'active' : ''}`;
-        btn.dataset.lang = lang.code;
-        btn.textContent = lang.label;
-        btn.onclick = () => {
-            document.querySelectorAll('.lang-option').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        };
-        container.appendChild(btn);
-    });
-    
-    // Заменяем select на наш красивый
-    const select = section.querySelector('select');
-    if (select) {
-        select.style.display = 'none';
-        section.appendChild(container);
-    }
-    
-    return container;
-}
+// ===== МЕНЮ ПУСК =====
+document.getElementById('start-button')?.addEventListener('click', () => {
+    const menu = document.getElementById('start-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+});
 
 // ===== АВТОРИЗАЦИЯ =====
 document.getElementById('do-login')?.addEventListener('click', async () => {
@@ -975,41 +956,6 @@ document.getElementById('submit-login')?.addEventListener('click', () => {
 });
 
 document.getElementById('logout-full')?.addEventListener('click', () => signOut(auth));
-
-// ===== МЕНЮ ПУСК =====
-document.getElementById('start-button')?.addEventListener('click', () => {
-    const menu = document.getElementById('start-menu');
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-});
-
-// ===== AUTH STATE =====
-onAuthStateChanged(auth, async (user) => {
-    console.log("Auth state changed:", user ? "Пользователь есть" : "Нет пользователя");
-    
-    try {
-        if (user) {
-            console.log("Загрузка данных пользователя...");
-            currentUser = user;
-            await loadFromFirebase();
-            console.log("Данные загружены");
-            
-            if (systemConfig.password) {
-                showScreen(loginScreen);
-            } else {
-                showScreen(desktop);
-            }
-        } else {
-            console.log("Нет пользователя, показываем экран авторизации");
-            currentStep = 1;
-            showScreen(authScreen);
-            renderSetupStep();
-        }
-    } catch (error) {
-        console.error("Ошибка при загрузке:", error);
-    } finally {
-        showLoading(false);
-    }
-});
 
 // ===== НАСТРОЙКА =====
 function renderSetupStep() {
@@ -1087,49 +1033,31 @@ document.getElementById('setup-prev')?.addEventListener('click', () => {
     }
 });
 
-// Функция для рендера содержимого папки (глобальная)
-function renderFolderContent(win, view = 'icons') {
-    const folderId = win.dataset.folderId;
-    const content = win.querySelector('.folder-content');
-    if (!content) return;
+// ===== AUTH STATE =====
+onAuthStateChanged(auth, async (user) => {
+    console.log("Auth state changed:", user ? "Пользователь есть" : "Нет пользователя");
     
-    const items = currentDesktopItems.filter(i => i.parentId == folderId);
-    content.innerHTML = '';
-    
-    if (items.length === 0) {
-        content.innerHTML = '<div style="width:100%; text-align:center; opacity:0.3; padding:40px;">Папка пуста</div>';
-        return;
+    try {
+        if (user) {
+            currentUser = user;
+            await loadFromFirebase();
+            
+            if (systemConfig.password) {
+                showScreen(loginScreen);
+            } else {
+                showScreen(desktop);
+            }
+        } else {
+            currentStep = 1;
+            showScreen(authScreen);
+            renderSetupStep();
+        }
+    } catch (error) {
+        console.error("Ошибка при загрузке:", error);
+    } finally {
+        showLoading(false);
     }
-    
-    if (view === 'list' || view === 'details') {
-        items.forEach(item => {
-            const div = document.createElement('div');
-            div.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 6px 12px; width: 100%; border-radius: 8px; cursor: pointer; transition: all 0.2s;';
-            div.onmouseenter = () => div.style.background = 'rgba(255,255,255,0.05)';
-            div.onmouseleave = () => div.style.background = '';
-            div.innerHTML = `
-                <i class="fas ${item.type === 'folder' ? 'fa-folder' : 'fa-file'}"></i>
-                <span>${item.name}</span>
-                <span style="margin-left: auto; opacity: 0.3; font-size: 12px;">${item.type === 'folder' ? 'Папка' : 'Файл'}</span>
-            `;
-            div.onclick = () => {
-                if (item.type === 'folder') {
-                    openFolderWindow(item);
-                } else {
-                    openFile(item);
-                }
-            };
-            content.appendChild(div);
-        });
-    } else {
-        items.forEach(item => {
-            const icon = createDesktopIcon(item);
-            icon.style.width = '70px';
-            icon.querySelector('.icon-img').style.fontSize = '28px';
-            content.appendChild(icon);
-        });
-    }
-}
+});
 
 console.log('✅ K-OS полностью обновлён!');
-console.log('✅ Добавлены: работающие окна, папки, корзина, автосохранение, жидкое стекло');
+console.log('✅ Исправлены: движение окон, кнопки, контекстное меню, корзина');
