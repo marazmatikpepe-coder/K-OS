@@ -235,9 +235,9 @@
                 <span id="notepad-title">Без названия.txt</span>
             </div>
             <div class="window-controls">
-                <button class="window-btn-min" onclick="minimizeWindow('notepad-window')">─</button>
-                <button class="window-btn-max" onclick="toggleMaximize('notepad-window')">☐</button>
-                <button class="window-btn-close" onclick="closeWindow('notepad-window')">✕</button>
+                <button class="window-btn-min" data-win="notepad-window">─</button>
+                <button class="window-btn-max" data-win="notepad-window">☐</button>
+                <button class="window-btn-close" data-win="notepad-window">✕</button>
             </div>
         </div>
         <textarea id="notepad-content" placeholder="Введите текст..."></textarea>
@@ -259,9 +259,9 @@
                 <span id="viewer-title">Изображение</span>
             </div>
             <div class="window-controls">
-                <button class="window-btn-min" onclick="minimizeWindow('viewer-window')">─</button>
-                <button class="window-btn-max" onclick="toggleMaximize('viewer-window')">☐</button>
-                <button class="window-btn-close" onclick="closeWindow('viewer-window')">✕</button>
+                <button class="window-btn-min" data-win="viewer-window">─</button>
+                <button class="window-btn-max" data-win="viewer-window">☐</button>
+                <button class="window-btn-close" data-win="viewer-window">✕</button>
             </div>
         </div>
         <div class="viewer-content">
@@ -274,13 +274,13 @@
         <div class="modal-container glass-panel trash-modal">
             <div class="modal-header">
                 <h3><i class="fas fa-trash-alt"></i> Корзина</h3>
-                <button class="modal-close" onclick="closeTrash()">&times;</button>
+                <button class="modal-close" onclick="document.getElementById('trash-modal').style.display='none'">&times;</button>
             </div>
             <div class="modal-body" id="trash-content">
                 <div class="trash-empty">Корзина пуста</div>
             </div>
             <div class="modal-footer">
-                <button class="auth-btn" style="background: rgba(255,0,0,0.3);" onclick="emptyTrash()">Очистить корзину</button>
+                <button class="auth-btn" style="background: rgba(255,0,0,0.3);" onclick="window.emptyTrash && window.emptyTrash()">Очистить корзину</button>
             </div>
         </div>
     </div>
