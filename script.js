@@ -1099,8 +1099,9 @@ onAuthStateChanged(auth, async (user) => {
         showLoading(false);
     }
 });
-// ===== ПЕРЕТАСКИВАНИЕ ФАЙЛОВ ПО РАБОЧЕМУ СТОЛУ =====
 
+// ===== ПЕРЕТАСКИВАНИЕ ФАЙЛОВ =====
+let dragData = null;
 
 document.addEventListener('dragstart', (e) => {
     const icon = e.target.closest('.desktop-icon');
@@ -1122,16 +1123,19 @@ document.addEventListener('dragend', (e) => {
     dragData = null;
 });
 
-// Перетаскивание по рабочему столу
-document.getElementById('desktop-icons')?.addEventListener('dragover', (e) => {
+// Единый обработчик для рабочего стола
+const desktopIcons = document.getElementById('desktop-icons');
+
+desktopIcons?.addEventListener('dragover', (e) => {
     e.preventDefault();
 });
 
-document.getElementById('desktop-icons')?.addEventListener('drop', (e) => {
+desktopIcons?.addEventListener('drop', (e) => {
     e.preventDefault();
-    if (!dragData) return;
     
-    const id = dragData.id;
+    const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
+    if (!id) return;
+    
     const item = currentDesktopItems.find(i => i.id == id);
     if (!item) return;
     
@@ -1141,61 +1145,29 @@ document.getElementById('desktop-icons')?.addEventListener('drop', (e) => {
     }
     
     // Сохраняем позицию
-    const rect = document.getElementById('desktop-icons').getBoundingClientRect();
-    item.x = e.clientX - rect.left - 42; // половинка иконки
+    const rect = desktopIcons.getBoundingClientRect();
+    item.x = e.clientX - rect.left - 42;
     item.y = e.clientY - rect.top - 42;
     
     saveToFirebase();
     renderDesktop();
+    
+    // Обновляем открытые папки
+    document.querySelectorAll('.floating-window[data-folder-id]').forEach(win => {
+        const folderId = win.dataset.folderId;
+        if (folderId) {
+            const folder = currentDesktopItems.find(i => i.id == folderId);
+            if (folder) {
+                // Закрываем и открываем заново
+                win.remove();
+                openWindows = openWindows.filter(w => w !== win);
+                openFolderWindow(folder);
+            }
+        }
+    });
+    
+    dragData = null;
 });
 
-// Перетаскивание в папку (обновляем существующий обработчик)
-// Добавляем обработчик в функцию openFolderWindow для контента папки
 console.log('✅ K-OS полностью обновлён!');
 console.log('✅ Исправлены: движение окон, кнопки, контекстное меню, корзина');
-// ===== ВЫТАСКИВАНИЕ ФАЙЛОВ ИЗ ПАПКИ =====
-// Добавляем возможность перетащить файл из папки на рабочий стол
-document.addEventListener('DOMContentLoaded', () => {
-    const desktopIcons = document.getElementById('desktop-icons');
-    if (desktopIcons) {
-        desktopIcons.addEventListener('dragover', (e) => {
-            e.preventDefault();
-        });
-        
-        desktopIcons.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
-            if (!id) return;
-            
-            const item = currentDesktopItems.find(i => i.id == id);
-            if (item && item.parentId) {
-                delete item.parentId;
-                const rect = desktopIcons.getBoundingClientRect();
-                item.x = e.clientX - rect.left - 42;
-                item.y = e.clientY - rect.top - 42;
-                saveToFirebase();
-                renderDesktop();
-                // Закрываем все открытые папки (или обновляем их)
-                document.querySelectorAll('.floating-window[data-folder-id]').forEach(win => {
-                    const folderId = win.dataset.folderId;
-                    if (folderId) {
-                        const folder = currentDesktopItems.find(i => i.id == folderId);
-                        if (folder) {
-                            // Обновляем содержимое
-                            const content = win.querySelector('.folder-content');
-                            if (content) {
-                                const items = currentDesktopItems.filter(i => i.parentId == folderId);
-                                const view = win.querySelector('.view-btn.active')?.dataset.view || 'icons';
-                                renderFolderContent(win, view);
-                                const span = win.querySelector('.folder-view-options span:last-child');
-                                if (span) span.textContent = `${items.length} элементов`;
-                            }
-                        }
-                    }
-                });
-            }
-            dragData = null;
-        });
-    }
-});
-}
