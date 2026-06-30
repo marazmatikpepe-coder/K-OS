@@ -84,11 +84,27 @@ async function loadFromFirebase() {
     }
 }
 
-function applyConfig() {
-    desktop.style.backgroundImage = `url(${systemConfig.wallpaper})`;
-    document.body.style.background = systemConfig.theme === 'dark' ? '#0a0a0a' : '#f0f0f0';
+function showScreen(screen) {
+    const screens = [authScreen, loginScreen, setupScreen, desktop];
+    screens.forEach(s => {
+        if (s) s.style.display = 'none';
+    });
+    if (screen) {
+        screen.style.display = 'flex';
+        
+        // Если показываем рабочий стол — запускаем анимацию
+        if (screen === desktop) {
+            // Убираем blur у всех элементов кроме фона
+            setTimeout(() => {
+                const allChildren = desktop.querySelectorAll('*');
+                allChildren.forEach(el => {
+                    el.style.filter = 'none';
+                    el.style.opacity = '1';
+                });
+            }, 100);
+        }
+    }
 }
-
 function renderDesktop() {
     const container = document.getElementById('desktop-icons');
     if (!container) return;
