@@ -1788,3 +1788,236 @@ body.light-theme .slider-value {
         font-size: 16px;
     }
 }
+/* ========== ВЫДЕЛЕНИЕ ИКОНОК ========== */
+.desktop-icon.selected {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-radius: 12px;
+    outline: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ========== ПЛАВНЫЙ ПЕРЕТАСКИВАНИЕ ========== */
+.desktop-icon {
+    transition: transform 0.1s ease;
+    user-select: none;
+}
+
+.desktop-icon:active {
+    cursor: grabbing;
+}
+
+/* ========== ЖИДКОЕ СТЕКЛО ========== */
+.glass-panel {
+    transition: backdrop-filter 0.3s ease, background 0.3s ease, border-radius 0.3s ease, box-shadow 0.3s ease;
+}
+
+.floating-window {
+    transition: backdrop-filter 0.3s ease, background 0.3s ease, border-radius 0.3s ease, box-shadow 0.3s ease, width 0.2s ease, height 0.2s ease;
+}
+
+/* ========== КРАСИВЫЙ ВЫБОР ЯЗЫКА ========== */
+.modern-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+    cursor: pointer;
+    border-radius: 12px !important;
+    transition: all 0.3s ease;
+}
+
+.modern-select:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+body.light-theme .modern-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%231a1a2e' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+}
+
+/* ========== СВЕТЛАЯ ТЕМА (ПОЛНОСТЬЮ) ========== */
+body.light-theme {
+    background: #f0f0f5;
+}
+
+body.light-theme .glass-panel {
+    background: rgba(255, 255, 255, 0.7) !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    color: #1a1a2e !important;
+}
+
+body.light-theme .floating-window {
+    background: rgba(255, 255, 255, 0.85) !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    color: #1a1a2e !important;
+}
+
+body.light-theme .window-title,
+body.light-theme .window-controls button,
+body.light-theme .folder-item-name,
+body.light-theme .folder-file-count,
+body.light-theme .settings-section h4,
+body.light-theme .modal-header h3,
+body.light-theme .start-header span,
+body.light-theme .app-item,
+body.light-theme .context-item,
+body.light-theme .trash-item span {
+    color: #1a1a2e !important;
+}
+
+body.light-theme .folder-toolbar {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+body.light-theme .folder-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .folder-content {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+body.light-theme .start-menu {
+    background: rgba(255, 255, 255, 0.85) !important;
+    color: #1a1a2e !important;
+}
+
+body.light-theme .start-search input {
+    background: rgba(0, 0, 0, 0.05);
+    color: #1a1a2e;
+}
+
+body.light-theme .start-search input::placeholder {
+    color: rgba(0, 0, 0, 0.4);
+}
+
+body.light-theme .app-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .context-menu {
+    background: rgba(255, 255, 255, 0.85) !important;
+    color: #1a1a2e !important;
+}
+
+body.light-theme .context-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .dock-items {
+    background: rgba(255, 255, 255, 0.7) !important;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+body.light-theme #notepad-content {
+    background: rgba(0, 0, 0, 0.03);
+    color: #1a1a2e;
+}
+
+body.light-theme .window-footer {
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+body.light-theme .trash-item {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+body.light-theme .window-btn-min,
+body.light-theme .window-btn-max,
+body.light-theme .window-btn-close {
+    color: rgba(0, 0, 0, 0.5);
+}
+
+body.light-theme .window-btn-min:hover,
+body.light-theme .window-btn-max:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .window-btn-close:hover {
+    background: rgba(255, 0, 0, 0.2);
+    color: #1a1a2e;
+}
+
+body.light-theme .modal-container {
+    background: rgba(255, 255, 255, 0.85) !important;
+    color: #1a1a2e !important;
+}
+
+body.light-theme .modern-select {
+    background: rgba(0, 0, 0, 0.05);
+    color: #1a1a2e;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.light-theme .glass-select {
+    background: rgba(0, 0, 0, 0.05);
+    color: #1a1a2e;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.light-theme .theme-option {
+    background: rgba(0, 0, 0, 0.05);
+    color: #1a1a2e;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.light-theme .theme-option.active {
+    background: #1a1a2e;
+    color: white;
+}
+
+body.light-theme .slider-value {
+    color: #1a1a2e;
+}
+
+body.light-theme .auth-card h2,
+body.light-theme .auth-subtitle,
+body.light-theme .input-group input {
+    color: #1a1a2e;
+}
+
+body.light-theme .input-group input::placeholder {
+    color: rgba(0, 0, 0, 0.4);
+}
+
+body.light-theme .auth-link {
+    color: #667eea;
+}
+
+body.light-theme .desktop-icon.selected {
+    background: rgba(0, 0, 0, 0.08) !important;
+    outline: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* ========== СЛАЙДЕР ========== */
+.glass-slider {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    outline: none;
+    margin: 12px 0;
+}
+
+.glass-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    transition: all 0.2s ease;
+}
+
+.glass-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+
+body.light-theme .glass-slider {
+    background: rgba(0, 0, 0, 0.15);
+}
+
+body.light-theme .glass-slider::-webkit-slider-thumb {
+    border: 2px solid rgba(0, 0, 0, 0.2);
+}
