@@ -483,4 +483,385 @@ window.toggleMaximize = function(id) {
         win.dataset.oldTop = win.style.top;
         win.style.width = '100%';
         win.style.height = '100%';
-        win.style.left =
+        win.style.left = '0';
+        win.style.top = '0';
+        win.dataset.maximized = 'true';
+        win.querySelector('.window-btn-max').textContent = '☐';
+    }
+};
+
+window.closeWindow = function(id) {
+    const win = typeof id === 'string' ? document.getElementById(id) : id;
+    if (win) {
+        if (win.id === 'notepad-window' || win.id === 'viewer-window') {
+            win.style.display = 'none';
+        } else {
+            win.remove();
+        }
+    }
+};
+
+// ========== ПЕРЕТАСКИВАНИЕ ОКОН ==========
+function makeDraggable(windowElement) {
+    const header = windowElement.querySelector('.window-header');
+    if (!header) return;
+    
+    let isDragging = false;
+    let offsetX, offsetY;
+    
+    header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.window-controls')) return;
+        isDragging = true;
+        const rect = windowElement.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        windowElement.style.transform = 'none';
+        windowElement.style.left = rect.left + 'px';
+        windowElement.style.top = rect.top + 'px';
+        windowElement.style.position = 'fixed';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        windowElement.style.left = (e.clientX - offsetX) + 'px';
+        windowElement.style.top = (e.clientY - offsetY) + 'px';
+    });
+    
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+}
+
+// ========== DRAG & DROP ФАЙЛОВ С КОМПЬЮТЕРА ==========
+document.addEventListener('dragover', (e) => e.preventDefault());
+
+document.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (!files.length) return;
+    
+    const target = e.target.closest('#desktop') || e.target.closest('#desktop-icons');
+    if (!target) return;
+    
+    // Загружаем только ПЕРВЫЙ файл
+    const file = files[0];
+    
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        try {
+            let content = event.target.result;
+            let url = null;
+            let type = 'file';
+            
+            if (file.type.startsWith('image/')) {
+                const formData = new FormData();
+                formData.append('image', content.split(',')[1]);
+                formData.append('key', IMGBB_KEY);
+                const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+                const json = await res.json();
+                if (json.success) {
+                    url = json.data.url;
+                    content = url;
+                    type = 'image';
+                }
+            }
+            
+            // Проверяем, есть ли уже такой файл
+            const existing = currentDesktopItems.find(i => i.name === file.name);
+            if (existing) {
+                Swal.fire({
+                    title: 'Файл уже существует',
+                    text: `Файл "${file.name}" уже есть на рабочем столе`,
+                    icon: 'warning',
+                    background: '#1a1a2e',
+                    color: '#fff'
+                });
+                return;
+            }
+            
+            currentDesktopItems.push({
+                id: Date.now() + Math.random(),
+                name: file.name,
+                type: type,
+                content: content,
+                url: url
+            });
+            renderDesktop();
+            saveToFirebase();
+        } catch (err) {
+            console.error('Ошибка загрузки файла:', err);
+            Swal.fire({
+                title: 'Ошибка',
+                text: 'Не удалось загрузить файл',
+                icon: 'error',
+                background: '#1a1a2e',
+                color: '#fff'
+            });
+        }
+    };
+    reader.readAsDataURL(file);
+});
+
+// ========== АВТОРИЗАЦИЯ ==========
+document.getElementById('do-login')?.addEventListener('click', async () => {
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+    } catch(e) {
+        Swal.fire('Ошибка', e.message, 'error');
+    }
+});
+
+document.getElementById('do-register')?.addEventListener('click', async () => {
+    const name = document.getElementById('reg-name').value;
+    const email = document.getElementById('reg-email').value;
+    const password = document.getElementById('reg-password').value;
+    const confirm = document.getElementById('reg-confirm').value;
+    if (password !== confirm) return Swal.fire('Ошибка', 'Пароли не совпадают', 'error');
+    try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(cred.user, { displayName: name });
+    } catch(e) {
+        Swal.fire('Ошибка', e.message, 'error');
+    }
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.onclick = () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+        document.getElementById(`${btn.dataset.tab}-form`).classList.add('active');
+    };
+});
+
+document.getElementById('submit-login')?.addEventListener('click', () => {
+    const pwd = document.getElementById('login-password').value;
+    if (pwd === systemConfig.password) showScreen(desktop);
+    else Swal.fire('Ошибка', 'Неверный пароль', 'error');
+});
+
+document.getElementById('logout-full')?.addEventListener('click', () => signOut(auth));
+
+// ========== AUTH STATE ==========
+onAuthStateChanged(auth, async (user) => {
+    console.log("Auth state changed:", user ? "Пользователь есть" : "Нет пользователя");
+    
+    try {
+        if (user) {
+            currentUser = user;
+            await loadFromFirebase();
+            
+            if (systemConfig.password) {
+                showScreen(loginScreen);
+            } else {
+                showScreen(desktop);
+            }
+        } else {
+            showScreen(authScreen);
+        }
+    } catch (error) {
+        console.error("Ошибка при загрузке:", error);
+        Swal.fire({
+            title: "Ошибка",
+            text: "Не удалось загрузить систему: " + error.message,
+            icon: "error",
+            background: "#1a1a2e",
+            color: "#fff"
+        });
+    } finally {
+        showLoading(false);
+    }
+});
+
+// ========== МЕНЮ ПУСК ==========
+document.getElementById('start-button')?.addEventListener('click', () => {
+    const menu = document.getElementById('start-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+});
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#start-button') && !e.target.closest('#start-menu')) {
+        document.getElementById('start-menu').style.display = 'none';
+    }
+    if (!e.target.closest('.context-menu')) {
+        document.getElementById('context-menu').style.display = 'none';
+        document.getElementById('file-context-menu').style.display = 'none';
+    }
+});
+
+// ========== ПЕРСОНАЛИЗАЦИЯ ==========
+document.querySelector('[data-action="personalize"]')?.addEventListener('click', () => {
+    document.getElementById('personalize-modal').style.display = 'flex';
+});
+
+document.querySelector('.modal-close')?.addEventListener('click', () => {
+    document.getElementById('personalize-modal').style.display = 'none';
+});
+
+document.querySelectorAll('.wallpaper-item').forEach(item => {
+    item.onclick = () => {
+        systemConfig.wallpaper = item.style.backgroundImage.slice(5, -2);
+        applyConfig();
+        saveToFirebase();
+    };
+});
+
+document.getElementById('save-personalize')?.addEventListener('click', () => {
+    const lang = document.getElementById('system-language').value;
+    systemConfig.language = lang;
+    systemConfig.glassIntensity = parseInt(document.getElementById('glass-intensity').value) || 60;
+    document.getElementById('glass-value').textContent = systemConfig.glassIntensity + '%';
+    applyConfig();
+    saveToFirebase();
+    document.getElementById('personalize-modal').style.display = 'none';
+    
+    Swal.fire({
+        title: 'Сохранено!',
+        text: 'Настройки применены',
+        icon: 'success',
+        background: '#1a1a2e',
+        color: '#fff',
+        timer: 1500
+    });
+});
+
+// Ползунок силы стекла
+document.getElementById('glass-intensity')?.addEventListener('input', function() {
+    document.getElementById('glass-value').textContent = this.value + '%';
+});
+
+document.querySelectorAll('.theme-option').forEach(opt => {
+    opt.onclick = () => {
+        document.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+        systemConfig.theme = opt.dataset.theme;
+        applyConfig();
+        saveToFirebase();
+    };
+});
+
+// ========== КОНТЕКСТНОЕ МЕНЮ РАБОЧЕГО СТОЛА ==========
+desktop?.addEventListener('contextmenu', (e) => {
+    if (e.target === desktop || e.target.id === 'desktop-icons') {
+        e.preventDefault();
+        const menu = document.getElementById('context-menu');
+        menu.style.left = Math.min(e.pageX, window.innerWidth - 220) + 'px';
+        menu.style.top = Math.min(e.pageY, window.innerHeight - 300) + 'px';
+        menu.style.display = 'flex';
+    }
+});
+
+document.querySelectorAll('#context-menu .context-item').forEach(btn => {
+    btn.onclick = () => {
+        const action = btn.dataset.action;
+        if (action === 'personalize') {
+            document.getElementById('personalize-modal').style.display = 'flex';
+        }
+        if (action === 'create-folder') {
+            currentDesktopItems.push({ 
+                id: Date.now() + Math.random(), 
+                name: 'Новая папка', 
+                type: 'folder', 
+                children: [] 
+            });
+            renderDesktop();
+            saveToFirebase();
+        }
+        if (action === 'create-file-txt') {
+            currentDesktopItems.push({ 
+                id: Date.now() + Math.random(), 
+                name: 'новый.txt', 
+                type: 'file', 
+                content: '' 
+            });
+            renderDesktop();
+            saveToFirebase();
+        }
+        if (action === 'create-file-doc') {
+            currentDesktopItems.push({ 
+                id: Date.now() + Math.random(), 
+                name: 'новый.doc', 
+                type: 'file', 
+                content: '' 
+            });
+            renderDesktop();
+            saveToFirebase();
+        }
+        if (action === 'refresh') {
+            renderDesktop();
+        }
+        if (action === 'upload-wallpaper') {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    try {
+                        const formData = new FormData();
+                        formData.append('image', ev.target.result.split(',')[1]);
+                        formData.append('key', IMGBB_KEY);
+                        const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+                        const json = await res.json();
+                        if (json.success) {
+                            systemConfig.wallpaper = json.data.url;
+                            applyConfig();
+                            saveToFirebase();
+                            Swal.fire({
+                                title: 'Успешно!',
+                                text: 'Обои обновлены',
+                                icon: 'success',
+                                background: '#1a1a2e',
+                                color: '#fff',
+                                timer: 1500
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Ошибка загрузки обоев:', err);
+                    }
+                };
+                reader.readAsDataURL(file);
+            };
+            input.click();
+        }
+        document.getElementById('context-menu').style.display = 'none';
+    };
+});
+
+// ========== СОХРАНЕНИЕ БЛОКНОТА ==========
+document.getElementById('save-notepad')?.addEventListener('click', () => {
+    const content = document.getElementById('notepad-content').value;
+    if (window.currentFile) {
+        window.currentFile.content = content;
+        saveToFirebase();
+        document.getElementById('notepad-status').textContent = 'Сохранено';
+        setTimeout(() => {
+            document.getElementById('notepad-status').textContent = 'Готово';
+        }, 2000);
+    }
+});
+
+// Ctrl+S для сохранения
+document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const notepad = document.getElementById('notepad-window');
+        if (notepad.style.display !== 'none') {
+            document.getElementById('save-notepad')?.click();
+        }
+    }
+});
+
+// Закрытие окон при потере фокуса
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.floating-window')) {
+        // Можно добавить поведение
+    }
+});
+
+console.log('✅ K-OS загружена!');
+console.log('✨ Система полностью готова к работе!');
