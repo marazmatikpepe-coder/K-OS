@@ -7,7 +7,7 @@ import {
     updateProfile
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
-    doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove 
+    doc, setDoc, getDoc 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const IMGBB_KEY = "cc09691527f520d75134d23712471d2c";
@@ -23,7 +23,6 @@ let systemConfig = {
     glassIntensity: 60
 };
 let clipboard = null;
-let isDragging = false;
 let dragData = null;
 
 const loadingScreen = document.getElementById('loading-screen');
@@ -33,7 +32,9 @@ const desktop = document.getElementById('desktop');
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function showLoading(show) {
-    loadingScreen.style.display = show ? 'flex' : 'none';
+    if (loadingScreen) {
+        loadingScreen.style.display = show ? 'flex' : 'none';
+    }
 }
 
 function showScreen(screen) {
@@ -55,7 +56,7 @@ function showScreen(screen) {
     }
 }
 
-// ========== СОХРАНЕНИЕ В FIREBASE (ежесекундно) ==========
+// ========== СОХРАНЕНИЕ В FIREBASE ==========
 async function saveToFirebase() {
     if (!currentUser) return;
     try {
@@ -75,18 +76,23 @@ setInterval(saveToFirebase, 1000);
 
 async function loadFromFirebase() {
     if (!currentUser) return;
-    const userRef = doc(db, 'users', currentUser.uid);
-    const docSnap = await getDoc(userRef);
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        currentDesktopItems = data.desktopItems || [];
-        trashItems = data.trashItems || [];
-        systemConfig = { ...systemConfig, ...data.config };
-        applyConfig();
-        renderDesktop();
-    } else {
-        currentDesktopItems = [];
-        renderDesktop();
+    try {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            currentDesktopItems = data.desktopItems || [];
+            trashItems = data.trashItems || [];
+            systemConfig = { ...systemConfig, ...data.config };
+            applyConfig();
+            renderDesktop();
+            updateTrashIcon();
+        } else {
+            currentDesktopItems = [];
+            renderDesktop();
+        }
+    } catch (e) {
+        console.error('Ошибка загрузки:', e);
     }
 }
 
@@ -99,11 +105,9 @@ function applyConfig() {
         desktop.style.backgroundRepeat = 'no-repeat';
     }
     
-    // Тема
     const theme = systemConfig.theme || 'dark';
     document.body.className = theme + '-theme';
     
-    // Жидкое стекло
     const intensity = systemConfig.glassIntensity || 60;
     const blurValue = 10 + (intensity / 100) * 30;
     const opacity = 0.3 + (intensity / 100) * 0.5;
@@ -125,7 +129,6 @@ function renderDesktop() {
     if (!container) return;
     container.innerHTML = '';
     
-    // Сортируем: папки сверху
     const sorted = [...currentDesktopItems].sort((a, b) => {
         if (a.type === 'folder' && b.type !== 'folder') return -1;
         if (a.type !== 'folder' && b.type === 'folder') return 1;
@@ -163,13 +166,11 @@ function renderDesktop() {
             <div class="icon-label">${item.name || 'Без названия'}</div>
         `;
         
-        // Двойной клик
         icon.ondblclick = () => {
             if (item.type === 'folder') openFolder(item);
             else openFile(item);
         };
         
-        // Перетаскивание
         icon.addEventListener('dragstart', (e) => {
             e.dataTransfer.setData('text/plain', item.id);
             dragData = { item, type: 'desktop' };
@@ -181,7 +182,6 @@ function renderDesktop() {
             dragData = null;
         });
         
-        // Правый клик
         icon.oncontextmenu = (e) => {
             e.preventDefault();
             showFileContextMenu(e.pageX, e.pageY, item);
@@ -190,17 +190,16 @@ function renderDesktop() {
         container.appendChild(icon);
     });
     
-    // Обновляем статус корзины
     updateTrashIcon();
 }
 
 // ========== ОТКРЫТИЕ ПАПКИ ==========
 function openFolder(folder) {
-    // Создаём окно папки
     const win = document.createElement('div');
     win.className = 'floating-window glass-panel folder-window';
     win.style.cssText = 'width: 600px; height: 400px; top: 15%; left: 20%; z-index: 5000; display: flex; flex-direction: column;';
     win.setAttribute('data-folder-id', folder.id);
+    win.id = 'folder-window-' + Date.now();
     
     win.innerHTML = `
         <div class="window-header">
@@ -209,9 +208,9 @@ function openFolder(folder) {
                 <span>${folder.name}</span>
             </div>
             <div class="window-controls">
-                <button class="window-btn-min" onclick="minimizeWindow(this.closest('.floating-window').id || '')">─</button>
-                <button class="window-btn-max" onclick="toggleMaximize(this.closest('.floating-window'))">☐</button>
-                <button class="window-btn-close" onclick="closeWindow(this.closest('.floating-window'))">✕</button>
+                <button class="window-btn-min" onclick="minimizeWindow('${win.id}')">─</button>
+                <button class="window-btn-max" onclick="toggleMaximize('${win.id}')">☐</button>
+                <button class="window-btn-close" onclick="closeWindow('${win.id}')">✕</button>
             </div>
         </div>
         <div class="folder-toolbar">
@@ -234,38 +233,21 @@ function openFolder(folder) {
     `;
     
     document.body.appendChild(win);
-    
-    // Добавляем ID для управления
-    const id = 'folder-window-' + Date.now();
-    win.id = id;
-    
-    // Делаем окно перемещаемым
     makeDraggable(win);
     
-    // Обработка перетаскивания в папку
     const content = win.querySelector('.folder-content');
     content.addEventListener('dragover', (e) => e.preventDefault());
     content.addEventListener('drop', (e) => {
         e.preventDefault();
-        const target = e.target.closest('.floating-window');
-        if (!target) return;
-        const folderId = target.dataset.folderId;
-        const folder = currentDesktopItems.find(i => i.id == folderId);
-        if (!folder) return;
-        
-        // Проверяем, есть ли у нас данные о перетаскивании
         if (dragData) {
-            // Перемещаем файл в папку
             const item = dragData.item;
             if (item && item.id !== folder.id) {
-                // Удаляем с рабочего стола
                 currentDesktopItems = currentDesktopItems.filter(i => i.id !== item.id);
-                // Добавляем в папку
                 if (!folder.children) folder.children = [];
                 folder.children.push({...item});
                 renderDesktop();
-                // Обновляем окно папки
                 refreshFolderWindow(folder.id);
+                saveToFirebase();
             }
         }
     });
@@ -296,7 +278,6 @@ function refreshFolderWindow(folderId) {
 
 // ========== ОТКРЫТИЕ ФАЙЛА ==========
 function openFile(file) {
-    // Изображение
     if (file.url || (file.content && file.content.startsWith('data:image'))) {
         const win = document.getElementById('viewer-window');
         win.style.display = 'flex';
@@ -310,7 +291,6 @@ function openFile(file) {
         return;
     }
     
-    // Текстовый файл
     if (file.name?.endsWith('.txt') || file.name?.endsWith('.doc')) {
         const win = document.getElementById('notepad-window');
         win.style.display = 'flex';
@@ -397,7 +377,7 @@ function openTrash() {
                 <span>${item.type === 'folder' ? '📁' : '📄'} ${item.name}</span>
                 <div class="trash-actions">
                     <button onclick="restoreItem(${index})" class="window-btn">Восстановить</button>
-                    <button onclick="deletePermanently(${index})" class="window-btn" style="background: rgba(255,0,0,0.3);">Удалить навсегда</button>
+                    <button onclick="deletePermanently(${index})" class="window-btn" style="background: rgba(255,0,0,0.3);">Удалить</button>
                 </div>
             </div>
         `).join('');
@@ -406,11 +386,7 @@ function openTrash() {
     modal.style.display = 'flex';
 }
 
-function closeTrash() {
-    document.getElementById('trash-modal').style.display = 'none';
-}
-
-function restoreItem(index) {
+window.restoreItem = function(index) {
     const item = trashItems[index];
     if (item) {
         currentDesktopItems.push({...item});
@@ -420,14 +396,18 @@ function restoreItem(index) {
         openTrash();
         updateTrashIcon();
     }
-}
+};
 
-function deletePermanently(index) {
+window.deletePermanently = function(index) {
     trashItems.splice(index, 1);
     renderDesktop();
     saveToFirebase();
     openTrash();
     updateTrashIcon();
+};
+
+function closeTrash() {
+    document.getElementById('trash-modal').style.display = 'none';
 }
 
 function emptyTrash() {
@@ -453,7 +433,7 @@ function emptyTrash() {
 
 // ========== УПРАВЛЕНИЕ ОКНАМИ ==========
 window.minimizeWindow = function(id) {
-    const win = typeof id === 'string' ? document.getElementById(id) : id;
+    const win = document.getElementById(id);
     if (win) {
         if (win.dataset.minimized === 'true') {
             win.style.display = 'flex';
@@ -466,7 +446,7 @@ window.minimizeWindow = function(id) {
 };
 
 window.toggleMaximize = function(id) {
-    const win = typeof id === 'string' ? document.getElementById(id) : id;
+    const win = document.getElementById(id);
     if (!win) return;
     
     if (win.dataset.maximized === 'true') {
@@ -475,7 +455,8 @@ window.toggleMaximize = function(id) {
         win.style.left = win.dataset.oldLeft || '20%';
         win.style.top = win.dataset.oldTop || '15%';
         win.dataset.maximized = 'false';
-        win.querySelector('.window-btn-max').textContent = '☐';
+        const btn = win.querySelector('.window-btn-max');
+        if (btn) btn.textContent = '☐';
     } else {
         win.dataset.oldWidth = win.style.width;
         win.dataset.oldHeight = win.style.height;
@@ -486,12 +467,13 @@ window.toggleMaximize = function(id) {
         win.style.left = '0';
         win.style.top = '0';
         win.dataset.maximized = 'true';
-        win.querySelector('.window-btn-max').textContent = '☐';
+        const btn = win.querySelector('.window-btn-max');
+        if (btn) btn.textContent = '☐';
     }
 };
 
 window.closeWindow = function(id) {
-    const win = typeof id === 'string' ? document.getElementById(id) : id;
+    const win = document.getElementById(id);
     if (win) {
         if (win.id === 'notepad-window' || win.id === 'viewer-window') {
             win.style.display = 'none';
@@ -509,7 +491,7 @@ function makeDraggable(windowElement) {
     let isDragging = false;
     let offsetX, offsetY;
     
-    header.addEventListener('mousedown', (e) => {
+    const onMouseDown = (e) => {
         if (e.target.closest('.window-controls')) return;
         isDragging = true;
         const rect = windowElement.getBoundingClientRect();
@@ -519,20 +501,31 @@ function makeDraggable(windowElement) {
         windowElement.style.left = rect.left + 'px';
         windowElement.style.top = rect.top + 'px';
         windowElement.style.position = 'fixed';
-    });
+    };
     
-    document.addEventListener('mousemove', (e) => {
+    const onMouseMove = (e) => {
         if (!isDragging) return;
         windowElement.style.left = (e.clientX - offsetX) + 'px';
         windowElement.style.top = (e.clientY - offsetY) + 'px';
-    });
+    };
     
-    document.addEventListener('mouseup', () => {
+    const onMouseUp = () => {
         isDragging = false;
-    });
+    };
+    
+    header.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    
+    // Сохраняем для очистки
+    windowElement._dragCleanup = () => {
+        header.removeEventListener('mousedown', onMouseDown);
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    };
 }
 
-// ========== DRAG & DROP ФАЙЛОВ С КОМПЬЮТЕРА ==========
+// ========== DRAG & DROP ФАЙЛОВ ==========
 document.addEventListener('dragover', (e) => e.preventDefault());
 
 document.addEventListener('drop', async (e) => {
@@ -543,7 +536,6 @@ document.addEventListener('drop', async (e) => {
     const target = e.target.closest('#desktop') || e.target.closest('#desktop-icons');
     if (!target) return;
     
-    // Загружаем только ПЕРВЫЙ файл
     const file = files[0];
     
     const reader = new FileReader();
@@ -566,7 +558,6 @@ document.addEventListener('drop', async (e) => {
                 }
             }
             
-            // Проверяем, есть ли уже такой файл
             const existing = currentDesktopItems.find(i => i.name === file.name);
             if (existing) {
                 Swal.fire({
@@ -638,8 +629,12 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 document.getElementById('submit-login')?.addEventListener('click', () => {
     const pwd = document.getElementById('login-password').value;
-    if (pwd === systemConfig.password) showScreen(desktop);
-    else Swal.fire('Ошибка', 'Неверный пароль', 'error');
+    if (pwd === systemConfig.password) {
+        showScreen(desktop);
+        renderDesktop();
+    } else {
+        Swal.fire('Ошибка', 'Неверный пароль', 'error');
+    }
 });
 
 document.getElementById('logout-full')?.addEventListener('click', () => signOut(auth));
@@ -657,6 +652,7 @@ onAuthStateChanged(auth, async (user) => {
                 showScreen(loginScreen);
             } else {
                 showScreen(desktop);
+                renderDesktop();
             }
         } else {
             showScreen(authScreen);
@@ -727,7 +723,6 @@ document.getElementById('save-personalize')?.addEventListener('click', () => {
     });
 });
 
-// Ползунок силы стекла
 document.getElementById('glass-intensity')?.addEventListener('input', function() {
     document.getElementById('glass-value').textContent = this.value + '%';
 });
@@ -845,21 +840,13 @@ document.getElementById('save-notepad')?.addEventListener('click', () => {
     }
 });
 
-// Ctrl+S для сохранения
 document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         const notepad = document.getElementById('notepad-window');
-        if (notepad.style.display !== 'none') {
+        if (notepad && notepad.style.display !== 'none') {
             document.getElementById('save-notepad')?.click();
         }
-    }
-});
-
-// Закрытие окон при потере фокуса
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('.floating-window')) {
-        // Можно добавить поведение
     }
 });
 
