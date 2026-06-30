@@ -208,9 +208,9 @@ function openFolder(folder) {
                 <span>${folder.name}</span>
             </div>
             <div class="window-controls">
-                <button class="window-btn-min" onclick="minimizeWindow('${win.id}')">─</button>
-                <button class="window-btn-max" onclick="toggleMaximize('${win.id}')">☐</button>
-                <button class="window-btn-close" onclick="closeWindow('${win.id}')">✕</button>
+                <button class="window-btn-min" data-win="${win.id}">─</button>
+                <button class="window-btn-max" data-win="${win.id}">☐</button>
+                <button class="window-btn-close" data-win="${win.id}">✕</button>
             </div>
         </div>
         <div class="folder-toolbar">
@@ -234,6 +234,18 @@ function openFolder(folder) {
     
     document.body.appendChild(win);
     makeDraggable(win);
+    
+    // Обработчики кнопок окна
+    win.querySelectorAll('.window-btn-min, .window-btn-max, .window-btn-close').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const winId = btn.dataset.win;
+            const action = btn.className.includes('min') ? 'minimize' : 
+                          btn.className.includes('max') ? 'maximize' : 'close';
+            if (action === 'minimize') minimizeWindow(winId);
+            else if (action === 'maximize') toggleMaximize(winId);
+            else if (action === 'close') closeWindow(winId);
+        });
+    });
     
     const content = win.querySelector('.folder-content');
     content.addEventListener('dragover', (e) => e.preventDefault());
@@ -356,7 +368,10 @@ function updateTrashIcon() {
     const trashIcon = document.getElementById('trash');
     if (trashIcon) {
         const count = trashItems.length;
-        trashIcon.querySelector('.icon-label').textContent = count > 0 ? `Корзина (${count})` : 'Корзина';
+        const label = trashIcon.querySelector('.icon-label');
+        if (label) {
+            label.textContent = count > 0 ? `Корзина (${count})` : 'Корзина';
+        }
         trashIcon.style.opacity = count > 0 ? '1' : '0.5';
     }
 }
@@ -368,6 +383,7 @@ document.getElementById('trash')?.addEventListener('dblclick', () => {
 function openTrash() {
     const modal = document.getElementById('trash-modal');
     const content = document.getElementById('trash-content');
+    if (!modal || !content) return;
     
     if (trashItems.length === 0) {
         content.innerHTML = '<div class="trash-empty">Корзина пуста</div>';
@@ -376,8 +392,8 @@ function openTrash() {
             <div class="trash-item">
                 <span>${item.type === 'folder' ? '📁' : '📄'} ${item.name}</span>
                 <div class="trash-actions">
-                    <button onclick="restoreItem(${index})" class="window-btn">Восстановить</button>
-                    <button onclick="deletePermanently(${index})" class="window-btn" style="background: rgba(255,0,0,0.3);">Удалить</button>
+                    <button onclick="window.restoreItem(${index})" class="window-btn">Восстановить</button>
+                    <button onclick="window.deletePermanently(${index})" class="window-btn" style="background: rgba(255,0,0,0.3);">Удалить</button>
                 </div>
             </div>
         `).join('');
@@ -386,6 +402,7 @@ function openTrash() {
     modal.style.display = 'flex';
 }
 
+// Делаем функции глобальными для onclick
 window.restoreItem = function(index) {
     const item = trashItems[index];
     if (item) {
@@ -406,11 +423,7 @@ window.deletePermanently = function(index) {
     updateTrashIcon();
 };
 
-function closeTrash() {
-    document.getElementById('trash-modal').style.display = 'none';
-}
-
-function emptyTrash() {
+window.emptyTrash = function() {
     Swal.fire({
         title: 'Очистить корзину?',
         text: 'Все файлы будут удалены навсегда',
@@ -429,10 +442,10 @@ function emptyTrash() {
             updateTrashIcon();
         }
     });
-}
+};
 
 // ========== УПРАВЛЕНИЕ ОКНАМИ ==========
-window.minimizeWindow = function(id) {
+function minimizeWindow(id) {
     const win = document.getElementById(id);
     if (win) {
         if (win.dataset.minimized === 'true') {
@@ -443,9 +456,9 @@ window.minimizeWindow = function(id) {
             win.dataset.minimized = 'true';
         }
     }
-};
+}
 
-window.toggleMaximize = function(id) {
+function toggleMaximize(id) {
     const win = document.getElementById(id);
     if (!win) return;
     
@@ -455,8 +468,6 @@ window.toggleMaximize = function(id) {
         win.style.left = win.dataset.oldLeft || '20%';
         win.style.top = win.dataset.oldTop || '15%';
         win.dataset.maximized = 'false';
-        const btn = win.querySelector('.window-btn-max');
-        if (btn) btn.textContent = '☐';
     } else {
         win.dataset.oldWidth = win.style.width;
         win.dataset.oldHeight = win.style.height;
@@ -467,12 +478,10 @@ window.toggleMaximize = function(id) {
         win.style.left = '0';
         win.style.top = '0';
         win.dataset.maximized = 'true';
-        const btn = win.querySelector('.window-btn-max');
-        if (btn) btn.textContent = '☐';
     }
-};
+}
 
-window.closeWindow = function(id) {
+function closeWindow(id) {
     const win = document.getElementById(id);
     if (win) {
         if (win.id === 'notepad-window' || win.id === 'viewer-window') {
@@ -481,7 +490,7 @@ window.closeWindow = function(id) {
             win.remove();
         }
     }
-};
+}
 
 // ========== ПЕРЕТАСКИВАНИЕ ОКОН ==========
 function makeDraggable(windowElement) {
@@ -491,7 +500,7 @@ function makeDraggable(windowElement) {
     let isDragging = false;
     let offsetX, offsetY;
     
-    const onMouseDown = (e) => {
+    header.addEventListener('mousedown', (e) => {
         if (e.target.closest('.window-controls')) return;
         isDragging = true;
         const rect = windowElement.getBoundingClientRect();
@@ -501,28 +510,17 @@ function makeDraggable(windowElement) {
         windowElement.style.left = rect.left + 'px';
         windowElement.style.top = rect.top + 'px';
         windowElement.style.position = 'fixed';
-    };
+    });
     
-    const onMouseMove = (e) => {
+    document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         windowElement.style.left = (e.clientX - offsetX) + 'px';
         windowElement.style.top = (e.clientY - offsetY) + 'px';
-    };
+    });
     
-    const onMouseUp = () => {
+    document.addEventListener('mouseup', () => {
         isDragging = false;
-    };
-    
-    header.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-    
-    // Сохраняем для очистки
-    windowElement._dragCleanup = () => {
-        header.removeEventListener('mousedown', onMouseDown);
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-    };
+    });
 }
 
 // ========== DRAG & DROP ФАЙЛОВ ==========
@@ -685,6 +683,19 @@ document.addEventListener('click', (e) => {
         document.getElementById('context-menu').style.display = 'none';
         document.getElementById('file-context-menu').style.display = 'none';
     }
+});
+
+// ========== ОБРАБОТЧИКИ КНОПОК ОКОН ==========
+document.querySelectorAll('.window-btn-min, .window-btn-max, .window-btn-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const winId = btn.dataset.win;
+        if (!winId) return;
+        const action = btn.className.includes('min') ? 'minimize' : 
+                      btn.className.includes('max') ? 'maximize' : 'close';
+        if (action === 'minimize') minimizeWindow(winId);
+        else if (action === 'maximize') toggleMaximize(winId);
+        else if (action === 'close') closeWindow(winId);
+    });
 });
 
 // ========== ПЕРСОНАЛИЗАЦИЯ ==========
