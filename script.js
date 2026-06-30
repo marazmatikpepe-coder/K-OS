@@ -36,10 +36,25 @@ function showLoading(show) {
 }
 
 function showScreen(screen) {
-    [authScreen, loginScreen, setupScreen, desktop].forEach(s => {
+    const screens = [authScreen, loginScreen, setupScreen, desktop];
+    screens.forEach(s => {
         if (s) s.style.display = 'none';
     });
-    screen.style.display = 'block';
+    if (screen) {
+        screen.style.display = 'flex';
+        
+        // Если показываем рабочий стол — запускаем анимацию
+        if (screen === desktop) {
+            // Убираем blur у всех элементов кроме фона
+            setTimeout(() => {
+                const allChildren = desktop.querySelectorAll('*');
+                allChildren.forEach(el => {
+                    el.style.filter = 'none';
+                    el.style.opacity = '1';
+                });
+            }, 100);
+        }
+    }
 }
 
 async function saveToFirebase() {
