@@ -7,7 +7,7 @@ import {
     updateProfile
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
-    doc, setDoc, getDoc 
+    doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const IMGBB_KEY = "cc09691527f520d75134d23712471d2c";
@@ -22,23 +22,28 @@ let systemConfig = {
     password: null,
     glassIntensity: 60
 };
+let currentStep = 1;
+let setupData = {};
 let clipboard = null;
 let dragData = null;
+let isDragging = false;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
 
 const loadingScreen = document.getElementById('loading-screen');
 const authScreen = document.getElementById('auth-screen');
 const loginScreen = document.getElementById('login-screen');
+const setupScreen = document.getElementById('setup-screen');
 const desktop = document.getElementById('desktop');
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function showLoading(show) {
-    if (loadingScreen) {
-        loadingScreen.style.display = show ? 'flex' : 'none';
-    }
+    loadingScreen.style.display = show ? 'flex' : 'none';
 }
 
+// ========== ЕДИНСТВЕННАЯ ФУНКЦИЯ showScreen ==========
 function showScreen(screen) {
-    const screens = [authScreen, loginScreen, desktop];
+    const screens = [authScreen, loginScreen, setupScreen, desktop];
     screens.forEach(s => {
         if (s) s.style.display = 'none';
     });
@@ -59,16 +64,12 @@ function showScreen(screen) {
 // ========== СОХРАНЕНИЕ В FIREBASE ==========
 async function saveToFirebase() {
     if (!currentUser) return;
-    try {
-        const userRef = doc(db, 'users', currentUser.uid);
-        await setDoc(userRef, {
-            desktopItems: currentDesktopItems,
-            trashItems: trashItems,
-            config: systemConfig
-        }, { merge: true });
-    } catch (e) {
-        console.error('Ошибка сохранения:', e);
-    }
+    const userRef = doc(db, 'users', currentUser.uid);
+    await setDoc(userRef, {
+        desktopItems: currentDesktopItems,
+        trashItems: trashItems,
+        config: systemConfig
+    }, { merge: true });
 }
 
 // Автосохранение каждую секунду
@@ -76,23 +77,19 @@ setInterval(saveToFirebase, 1000);
 
 async function loadFromFirebase() {
     if (!currentUser) return;
-    try {
-        const userRef = doc(db, 'users', currentUser.uid);
-        const docSnap = await getDoc(userRef);
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            currentDesktopItems = data.desktopItems || [];
-            trashItems = data.trashItems || [];
-            systemConfig = { ...systemConfig, ...data.config };
-            applyConfig();
-            renderDesktop();
-            updateTrashIcon();
-        } else {
-            currentDesktopItems = [];
-            renderDesktop();
-        }
-    } catch (e) {
-        console.error('Ошибка загрузки:', e);
+    const userRef = doc(db, 'users', currentUser.uid);
+    const docSnap = await getDoc(userRef);
+    if (docSnap.exists()) {
+        const data = docSnap.data();
+        currentDesktopItems = data.desktopItems || [];
+        trashItems = data.trashItems || [];
+        systemConfig = { ...systemConfig, ...data.config };
+        applyConfig();
+        renderDesktop();
+        updateTrashIcon();
+    } else {
+        currentDesktopItems = [];
+        renderDesktop();
     }
 }
 
@@ -108,18 +105,26 @@ function applyConfig() {
     const theme = systemConfig.theme || 'dark';
     document.body.className = theme + '-theme';
     
+    // Жидкое стекло
     const intensity = systemConfig.glassIntensity || 60;
-    const blurValue = 10 + (intensity / 100) * 30;
-    const opacity = 0.3 + (intensity / 100) * 0.5;
+    const blurValue = 10 + (intensity / 100) * 40;
+    const opacity = 0.25 + (intensity / 100) * 0.55;
+    const borderRadius = 16 + (intensity / 100) * 12;
     
     document.querySelectorAll('.glass-panel').forEach(el => {
-        el.style.backdropFilter = `blur(${blurValue}px)`;
+        el.style.backdropFilter = `blur(${blurValue}px) saturate(1.4)`;
         el.style.background = `rgba(30, 30, 40, ${opacity})`;
+        el.style.borderRadius = borderRadius + 'px';
+        el.style.border = `1px solid rgba(255, 255, 255, ${0.05 + (intensity / 100) * 0.15})`;
+        el.style.boxShadow = `0 8px 32px rgba(0,0,0,${0.2 + (intensity / 100) * 0.4}), inset 0 1px 0 rgba(255,255,255,${0.05 + (intensity / 100) * 0.1})`;
     });
     
     document.querySelectorAll('.floating-window').forEach(el => {
-        el.style.backdropFilter = `blur(${blurValue + 5}px)`;
-        el.style.background = `rgba(30, 30, 40, ${opacity + 0.2})`;
+        el.style.backdropFilter = `blur(${blurValue + 10}px) saturate(1.5)`;
+        el.style.background = `rgba(30, 30, 40, ${opacity + 0.15})`;
+        el.style.borderRadius = (borderRadius + 4) + 'px';
+        el.style.border = `1px solid rgba(255, 255, 255, ${0.08 + (intensity / 100) * 0.12})`;
+        el.style.boxShadow = `0 20px 60px rgba(0,0,0,${0.3 + (intensity / 100) * 0.5}), inset 0 1px 0 rgba(255,255,255,${0.05 + (intensity / 100) * 0.1})`;
     });
 }
 
@@ -171,6 +176,13 @@ function renderDesktop() {
             else openFile(item);
         };
         
+        icon.onclick = () => {
+            // Для выделения иконки
+            document.querySelectorAll('.desktop-icon').forEach(i => i.classList.remove('selected'));
+            icon.classList.add('selected');
+        };
+        
+        // ПЕРЕТАСКИВАНИЕ ИКОНОК
         icon.addEventListener('dragstart', (e) => {
             e.dataTransfer.setData('text/plain', item.id);
             dragData = { item, type: 'desktop' };
@@ -179,7 +191,6 @@ function renderDesktop() {
         
         icon.addEventListener('dragend', () => {
             icon.style.opacity = '1';
-            dragData = null;
         });
         
         icon.oncontextmenu = (e) => {
@@ -193,8 +204,145 @@ function renderDesktop() {
     updateTrashIcon();
 }
 
+// ========== ПЕРЕТАСКИВАНИЕ ИКОНОК МЫШКОЙ (ПЛАВНО) ==========
+let draggedIcon = null;
+let dragStartX = 0;
+let dragStartY = 0;
+let iconStartX = 0;
+let iconStartY = 0;
+
+document.addEventListener('mousedown', (e) => {
+    const icon = e.target.closest('.desktop-icon');
+    if (!icon || e.button !== 0) return;
+    if (e.target.closest('.icon-label')) return;
+    
+    const id = icon.dataset.id;
+    const item = currentDesktopItems.find(i => i.id == id);
+    if (!item) return;
+    
+    draggedIcon = icon;
+    const rect = icon.getBoundingClientRect();
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    iconStartX = rect.left;
+    iconStartY = rect.top;
+    
+    icon.style.position = 'absolute';
+    icon.style.left = iconStartX + 'px';
+    icon.style.top = iconStartY + 'px';
+    icon.style.zIndex = '1000';
+    icon.style.cursor = 'grabbing';
+    icon.style.transition = 'none';
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!draggedIcon) return;
+    
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    
+    draggedIcon.style.left = (iconStartX + dx) + 'px';
+    draggedIcon.style.top = (iconStartY + dy) + 'px';
+    draggedIcon.style.transform = 'scale(1.05)';
+});
+
+document.addEventListener('mouseup', (e) => {
+    if (!draggedIcon) return;
+    
+    const id = draggedIcon.dataset.id;
+    const item = currentDesktopItems.find(i => i.id == id);
+    if (item) {
+        const rect = draggedIcon.getBoundingClientRect();
+        const container = document.getElementById('desktop-icons');
+        const containerRect = container.getBoundingClientRect();
+        
+        item.x = rect.left - containerRect.left;
+        item.y = rect.top - containerRect.top;
+        
+        saveToFirebase();
+    }
+    
+    draggedIcon.style.transform = 'scale(1)';
+    draggedIcon.style.zIndex = 'auto';
+    draggedIcon.style.cursor = 'default';
+    draggedIcon.style.transition = 'all 0.2s ease';
+    draggedIcon = null;
+    
+    renderDesktop();
+});
+
+// ========== НАСТРОЙКА (6 ШАГОВ) ==========
+function renderSetupStep() {
+    const stepContent = document.getElementById('setup-step-content');
+    if (!stepContent) return;
+    
+    switch(currentStep) {
+        case 1:
+            stepContent.innerHTML = `<h2>Добро пожаловать в K-OS!</h2><p>Давайте настроим вашу систему</p>`;
+            break;
+        case 2:
+            stepContent.innerHTML = `<h2>Выберите язык</h2>
+                <select id="setup-lang" class="glass-select modern-select">
+                    <option value="ru">🇷🇺 Русский</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="zh">🇨🇳 中文</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="pt">🇵🇹 Português</option>
+                    <option value="ar">🇸🇦 العربية</option>
+                    <option value="ja">🇯🇵 日本語</option>
+                    <option value="ko">🇰🇷 한국어</option>
+                </select>`;
+            break;
+        case 3:
+            stepContent.innerHTML = `<h2>Яркость системы</h2><input type="range" id="setup-brightness" min="0" max="100" value="100" class="glass-slider">`;
+            break;
+        case 4:
+            stepContent.innerHTML = `<h2>Подключение к Wi-Fi</h2><p>Пропустить (демо)</p>`;
+            break;
+        case 5:
+            stepContent.innerHTML = `<h2>Установить пароль для входа</h2>
+                <input type="password" id="setup-password" class="glass-input" placeholder="Пароль" style="width:100%;padding:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:white;">`;
+            break;
+        case 6:
+            stepContent.innerHTML = `<h2>Готово!</h2><p>Наслаждайтесь K-OS</p>`;
+            break;
+    }
+}
+
+function nextSetupStep() {
+    if (currentStep === 5) {
+        const pwd = document.getElementById('setup-password')?.value;
+        if (pwd) systemConfig.password = pwd;
+    }
+    if (currentStep < 6) {
+        currentStep++;
+        renderSetupStep();
+        document.querySelectorAll('.step-dot').forEach((dot, i) => {
+            if (i < currentStep) dot.classList.add('active');
+        });
+    } else {
+        saveToFirebase();
+        showScreen(desktop);
+        loadFromFirebase();
+    }
+}
+
+document.getElementById('setup-next')?.addEventListener('click', nextSetupStep);
+document.getElementById('setup-prev')?.addEventListener('click', () => {
+    if (currentStep > 1) { currentStep--; renderSetupStep(); }
+});
+
 // ========== ОТКРЫТИЕ ПАПКИ ==========
 function openFolder(folder) {
+    const existingWin = document.querySelector(`.folder-window[data-folder-id="${folder.id}"]`);
+    if (existingWin) {
+        existingWin.style.display = 'flex';
+        existingWin.style.zIndex = '5000';
+        return;
+    }
+    
     const win = document.createElement('div');
     win.className = 'floating-window glass-panel folder-window';
     win.style.cssText = 'width: 600px; height: 400px; top: 15%; left: 20%; z-index: 5000; display: flex; flex-direction: column;';
@@ -224,7 +372,7 @@ function openFolder(folder) {
         </div>
         <div class="folder-content" id="folder-content-${folder.id}">
             ${(folder.children || []).map(child => `
-                <div class="folder-item" data-id="${child.id}">
+                <div class="folder-item" data-id="${child.id}" draggable="true">
                     <div class="folder-item-icon">${child.type === 'folder' ? '📁' : '📄'}</div>
                     <div class="folder-item-name">${child.name}</div>
                 </div>
@@ -235,9 +383,9 @@ function openFolder(folder) {
     document.body.appendChild(win);
     makeDraggable(win);
     
-    // Обработчики кнопок окна
+    // Кнопки окна
     win.querySelectorAll('.window-btn-min, .window-btn-max, .window-btn-close').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', () => {
             const winId = btn.dataset.win;
             const action = btn.className.includes('min') ? 'minimize' : 
                           btn.className.includes('max') ? 'maximize' : 'close';
@@ -247,8 +395,11 @@ function openFolder(folder) {
         });
     });
     
+    // Перетаскивание из папки на рабочий стол
     const content = win.querySelector('.folder-content');
+    
     content.addEventListener('dragover', (e) => e.preventDefault());
+    
     content.addEventListener('drop', (e) => {
         e.preventDefault();
         if (dragData) {
@@ -256,9 +407,51 @@ function openFolder(folder) {
             if (item && item.id !== folder.id) {
                 currentDesktopItems = currentDesktopItems.filter(i => i.id !== item.id);
                 if (!folder.children) folder.children = [];
-                folder.children.push({...item});
+                // Проверяем дубликаты в папке
+                const exists = folder.children.find(c => c.id === item.id || c.name === item.name);
+                if (!exists) {
+                    folder.children.push({...item});
+                }
                 renderDesktop();
                 refreshFolderWindow(folder.id);
+                saveToFirebase();
+            }
+        }
+    });
+    
+    // Перетаскивание файлов из папки на рабочий стол
+    content.querySelectorAll('.folder-item').forEach(itemEl => {
+        itemEl.addEventListener('dragstart', (e) => {
+            const childId = itemEl.dataset.id;
+            const child = folder.children?.find(c => c.id == childId);
+            if (child) {
+                e.dataTransfer.setData('text/plain', childId);
+                dragData = { item: child, type: 'folder' };
+                itemEl.style.opacity = '0.5';
+            }
+        });
+        
+        itemEl.addEventListener('dragend', () => {
+            itemEl.style.opacity = '1';
+        });
+    });
+    
+    // Принимаем файлы с рабочего стола
+    desktop.addEventListener('dragover', (e) => e.preventDefault());
+    desktop.addEventListener('drop', (e) => {
+        if (dragData && dragData.type === 'folder') {
+            const item = dragData.item;
+            if (item) {
+                // Удаляем из папки
+                const folderId = win.dataset.folderId;
+                const parentFolder = currentDesktopItems.find(f => f.id == folderId);
+                if (parentFolder && parentFolder.children) {
+                    parentFolder.children = parentFolder.children.filter(c => c.id !== item.id);
+                    refreshFolderWindow(folderId);
+                }
+                // Добавляем на рабочий стол
+                currentDesktopItems.push({...item});
+                renderDesktop();
                 saveToFirebase();
             }
         }
@@ -274,7 +467,7 @@ function refreshFolderWindow(folderId) {
                 const content = win.querySelector('.folder-content');
                 if (content) {
                     content.innerHTML = (folder.children || []).map(child => `
-                        <div class="folder-item" data-id="${child.id}">
+                        <div class="folder-item" data-id="${child.id}" draggable="true">
                             <div class="folder-item-icon">${child.type === 'folder' ? '📁' : '📄'}</div>
                             <div class="folder-item-name">${child.name}</div>
                         </div>
@@ -282,6 +475,22 @@ function refreshFolderWindow(folderId) {
                     
                     const count = win.querySelector('.folder-file-count');
                     if (count) count.textContent = `${folder.children?.length || 0} элементов`;
+                    
+                    // Перетаскивание из обновлённой папки
+                    content.querySelectorAll('.folder-item').forEach(itemEl => {
+                        itemEl.addEventListener('dragstart', (e) => {
+                            const childId = itemEl.dataset.id;
+                            const child = folder.children?.find(c => c.id == childId);
+                            if (child) {
+                                e.dataTransfer.setData('text/plain', childId);
+                                dragData = { item: child, type: 'folder' };
+                                itemEl.style.opacity = '0.5';
+                            }
+                        });
+                        itemEl.addEventListener('dragend', () => {
+                            itemEl.style.opacity = '1';
+                        });
+                    });
                 }
             }
         }
@@ -326,7 +535,7 @@ function openFile(file) {
     });
 }
 
-// ========== КОНТЕКСТНОЕ МЕНЮ ==========
+// ========== КОНТЕКСТНОЕ МЕНЮ ФАЙЛА ==========
 function showFileContextMenu(x, y, item) {
     const menu = document.getElementById('file-context-menu');
     menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
@@ -380,6 +589,12 @@ document.getElementById('trash')?.addEventListener('dblclick', () => {
     openTrash();
 });
 
+// ПКМ по корзине
+document.getElementById('trash')?.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openTrash();
+});
+
 function openTrash() {
     const modal = document.getElementById('trash-modal');
     const content = document.getElementById('trash-content');
@@ -402,7 +617,10 @@ function openTrash() {
     modal.style.display = 'flex';
 }
 
-// Делаем функции глобальными для onclick
+function closeTrash() {
+    document.getElementById('trash-modal').style.display = 'none';
+}
+
 window.restoreItem = function(index) {
     const item = trashItems[index];
     if (item) {
@@ -492,38 +710,73 @@ function closeWindow(id) {
     }
 }
 
-// ========== ПЕРЕТАСКИВАНИЕ ОКОН ==========
+// ========== ПЕРЕТАСКИВАНИЕ ОКОН (ПЛАВНО) ==========
 function makeDraggable(windowElement) {
     const header = windowElement.querySelector('.window-header');
     if (!header) return;
     
     let isDragging = false;
-    let offsetX, offsetY;
+    let offsetX = 0;
+    let offsetY = 0;
+    let startX = 0;
+    let startY = 0;
+    let winLeft = 0;
+    let winTop = 0;
     
     header.addEventListener('mousedown', (e) => {
         if (e.target.closest('.window-controls')) return;
         isDragging = true;
+        
         const rect = windowElement.getBoundingClientRect();
         offsetX = e.clientX - rect.left;
         offsetY = e.clientY - rect.top;
-        windowElement.style.transform = 'none';
-        windowElement.style.left = rect.left + 'px';
-        windowElement.style.top = rect.top + 'px';
+        winLeft = rect.left;
+        winTop = rect.top;
+        
         windowElement.style.position = 'fixed';
+        windowElement.style.left = winLeft + 'px';
+        windowElement.style.top = winTop + 'px';
+        windowElement.style.transform = 'none';
+        windowElement.style.transition = 'none';
+        windowElement.style.zIndex = '9999';
+        windowElement.style.cursor = 'grabbing';
+        
+        e.preventDefault();
     });
     
     document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
-        windowElement.style.left = (e.clientX - offsetX) + 'px';
-        windowElement.style.top = (e.clientY - offsetY) + 'px';
+        
+        const dx = e.clientX - offsetX;
+        const dy = e.clientY - offsetY;
+        
+        windowElement.style.left = dx + 'px';
+        windowElement.style.top = dy + 'px';
     });
     
     document.addEventListener('mouseup', () => {
-        isDragging = false;
+        if (isDragging) {
+            isDragging = false;
+            windowElement.style.cursor = 'default';
+            windowElement.style.transition = 'all 0.2s ease';
+        }
     });
 }
 
-// ========== DRAG & DROP ФАЙЛОВ ==========
+// ========== ОБРАБОТЧИКИ КНОПОК ОКОН ==========
+document.querySelectorAll('.window-btn-min, .window-btn-max, .window-btn-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const winId = btn.dataset.win;
+        if (!winId) return;
+        const action = btn.className.includes('min') ? 'minimize' : 
+                      btn.className.includes('max') ? 'maximize' : 'close';
+        if (action === 'minimize') minimizeWindow(winId);
+        else if (action === 'maximize') toggleMaximize(winId);
+        else if (action === 'close') closeWindow(winId);
+    });
+});
+
+// ========== DRAG & DROP ФАЙЛОВ С КОМПЬЮТЕРА ==========
 document.addEventListener('dragover', (e) => e.preventDefault());
 
 document.addEventListener('drop', async (e) => {
@@ -591,7 +844,7 @@ document.addEventListener('drop', async (e) => {
     reader.readAsDataURL(file);
 });
 
-// ========== АВТОРИЗАЦИЯ ==========
+// ========== АВТОРИЗАЦИЯ (ТВОЯ ЛОГИКА) ==========
 document.getElementById('do-login')?.addEventListener('click', async () => {
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
@@ -611,6 +864,7 @@ document.getElementById('do-register')?.addEventListener('click', async () => {
     try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: name });
+        Swal.fire('Успешно!', 'Аккаунт создан', 'success');
     } catch(e) {
         Swal.fire('Ошибка', e.message, 'error');
     }
@@ -650,10 +904,11 @@ onAuthStateChanged(auth, async (user) => {
                 showScreen(loginScreen);
             } else {
                 showScreen(desktop);
-                renderDesktop();
             }
         } else {
+            currentStep = 1;
             showScreen(authScreen);
+            renderSetupStep();
         }
     } catch (error) {
         console.error("Ошибка при загрузке:", error);
@@ -683,19 +938,6 @@ document.addEventListener('click', (e) => {
         document.getElementById('context-menu').style.display = 'none';
         document.getElementById('file-context-menu').style.display = 'none';
     }
-});
-
-// ========== ОБРАБОТЧИКИ КНОПОК ОКОН ==========
-document.querySelectorAll('.window-btn-min, .window-btn-max, .window-btn-close').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const winId = btn.dataset.win;
-        if (!winId) return;
-        const action = btn.className.includes('min') ? 'minimize' : 
-                      btn.className.includes('max') ? 'maximize' : 'close';
-        if (action === 'minimize') minimizeWindow(winId);
-        else if (action === 'maximize') toggleMaximize(winId);
-        else if (action === 'close') closeWindow(winId);
-    });
 });
 
 // ========== ПЕРСОНАЛИЗАЦИЯ ==========
@@ -736,6 +978,11 @@ document.getElementById('save-personalize')?.addEventListener('click', () => {
 
 document.getElementById('glass-intensity')?.addEventListener('input', function() {
     document.getElementById('glass-value').textContent = this.value + '%';
+    // Предпросмотр
+    const temp = systemConfig.glassIntensity;
+    systemConfig.glassIntensity = parseInt(this.value);
+    applyConfig();
+    systemConfig.glassIntensity = temp;
 });
 
 document.querySelectorAll('.theme-option').forEach(opt => {
@@ -750,7 +997,7 @@ document.querySelectorAll('.theme-option').forEach(opt => {
 
 // ========== КОНТЕКСТНОЕ МЕНЮ РАБОЧЕГО СТОЛА ==========
 desktop?.addEventListener('contextmenu', (e) => {
-    if (e.target === desktop || e.target.id === 'desktop-icons') {
+    if (e.target === desktop || e.target.id === 'desktop-icons' || e.target.closest('.desktop-icons')) {
         e.preventDefault();
         const menu = document.getElementById('context-menu');
         menu.style.left = Math.min(e.pageX, window.innerWidth - 220) + 'px';
