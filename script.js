@@ -15,7 +15,12 @@ const IMGBB_KEY = "cc09691527f520d75134d23712471d2c";
 let currentUser = null;
 let currentDesktopItems = [];
 let trashItems = [];
-let systemConfig = { wallpaper: 'https://i.ibb.co/tgktvGq/image.png', language: 'ru', theme: 'dark', password: null };
+let systemConfig = { 
+    wallpaper: 'https://i.ibb.co/ccvjPDC4/image-Picsart-Ai-Image-Enhancer.png', 
+    language: 'ru', 
+    theme: 'dark', 
+    password: null 
+};
 let currentStep = 1;
 let setupData = {};
 
