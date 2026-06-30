@@ -20,12 +20,14 @@ let systemConfig = {
     language: 'ru', 
     theme: 'dark', 
     password: null,
-    glassIntensity: 60
+    glassOpacity: 0.6,
+    glassBlur: 20,
+    glassBorder: 0.1
 };
 let currentStep = 1;
 let setupData = {};
-let clipboard = null;
-let dragData = null;
+let openWindows = [];
+let windowZIndex = 1000;
 
 const loadingScreen = document.getElementById('loading-screen');
 const authScreen = document.getElementById('auth-screen');
@@ -33,7 +35,19 @@ const loginScreen = document.getElementById('login-screen');
 const setupScreen = document.getElementById('setup-screen');
 const desktop = document.getElementById('desktop');
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+// ===== АВТОСОХРАНЕНИЕ КАЖДУЮ СЕКУНДУ =====
+let autoSaveInterval = null;
+
+function startAutoSave() {
+    if (autoSaveInterval) clearInterval(autoSaveInterval);
+    autoSaveInterval = setInterval(() => {
+        if (currentUser) {
+            saveToFirebase();
+        }
+    }, 1000);
+}
+
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
 function showLoading(show) {
     loadingScreen.style.display = show ? 'flex' : 'none';
 }
@@ -46,51 +60,50 @@ function showScreen(screen) {
     if (screen) {
         screen.style.display = 'flex';
         if (screen === desktop) {
-            setTimeout(() => {
-                const allChildren = desktop.querySelectorAll('*');
-                allChildren.forEach(el => {
-                    el.style.filter = 'none';
-                    el.style.opacity = '1';
-                });
-            }, 100);
+            applyConfig();
+            renderDesktop();
+            startAutoSave();
         }
     }
 }
 
-// ========== СОХРАНЕНИЕ В FIREBASE (ЕЖЕСЕКУНДНО) ==========
 async function saveToFirebase() {
     if (!currentUser) return;
-    const userRef = doc(db, 'users', currentUser.uid);
-    await setDoc(userRef, {
-        desktopItems: currentDesktopItems,
-        trashItems: trashItems,
-        config: systemConfig
-    }, { merge: true });
-}
-
-// АВТОСОХРАНЕНИЕ КАЖДУЮ СЕКУНДУ
-setInterval(saveToFirebase, 1000);
-
-async function loadFromFirebase() {
-    if (!currentUser) return;
-    const userRef = doc(db, 'users', currentUser.uid);
-    const docSnap = await getDoc(userRef);
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        currentDesktopItems = data.desktopItems || [];
-        trashItems = data.trashItems || [];
-        systemConfig = { ...systemConfig, ...data.config };
-        applyConfig();
-        renderDesktop();
-        updateTrashIcon();
-    } else {
-        currentDesktopItems = [];
-        renderDesktop();
+    try {
+        const userRef = doc(db, 'users', currentUser.uid);
+        await setDoc(userRef, {
+            desktopItems: currentDesktopItems,
+            trashItems: trashItems,
+            config: systemConfig
+        }, { merge: true });
+    } catch (e) {
+        console.error('Save error:', e);
     }
 }
 
-// ========== ПРИМЕНЕНИЕ НАСТРОЕК (ЖИДКОЕ СТЕКЛО) ==========
+async function loadFromFirebase() {
+    if (!currentUser) return;
+    try {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            currentDesktopItems = data.desktopItems || [];
+            trashItems = data.trashItems || [];
+            systemConfig = { ...systemConfig, ...data.config };
+            applyConfig();
+            renderDesktop();
+        } else {
+            currentDesktopItems = [];
+            renderDesktop();
+        }
+    } catch (e) {
+        console.error('Load error:', e);
+    }
+}
+
 function applyConfig() {
+    // Обои
     if (desktop) {
         desktop.style.backgroundImage = `url(${systemConfig.wallpaper})`;
         desktop.style.backgroundSize = 'cover';
@@ -99,296 +112,576 @@ function applyConfig() {
     }
     
     // Тема
-    const theme = systemConfig.theme || 'dark';
-    document.body.className = theme + '-theme';
+    document.body.classList.toggle('light-theme', systemConfig.theme === 'light');
     
-    // ЖИДКОЕ СТЕКЛО
-    const intensity = systemConfig.glassIntensity || 60;
-    const blurValue = 10 + (intensity / 100) * 40;
-    const opacity = 0.25 + (intensity / 100) * 0.55;
-    const borderRadius = 16 + (intensity / 100) * 12;
-    
-    document.querySelectorAll('.glass-panel').forEach(el => {
-        el.style.backdropFilter = `blur(${blurValue}px) saturate(1.4)`;
-        el.style.background = `rgba(30, 30, 40, ${opacity})`;
-        el.style.borderRadius = borderRadius + 'px';
-        el.style.border = `1px solid rgba(255, 255, 255, ${0.05 + (intensity / 100) * 0.15})`;
-        el.style.boxShadow = `0 8px 32px rgba(0,0,0,${0.2 + (intensity / 100) * 0.4}), inset 0 1px 0 rgba(255,255,255,${0.05 + (intensity / 100) * 0.1})`;
-    });
-    
-    document.querySelectorAll('.floating-window').forEach(el => {
-        el.style.backdropFilter = `blur(${blurValue + 10}px) saturate(1.5)`;
-        el.style.background = `rgba(30, 30, 40, ${opacity + 0.15})`;
-        el.style.borderRadius = (borderRadius + 4) + 'px';
-        el.style.border = `1px solid rgba(255, 255, 255, ${0.08 + (intensity / 100) * 0.12})`;
-        el.style.boxShadow = `0 20px 60px rgba(0,0,0,${0.3 + (intensity / 100) * 0.5}), inset 0 1px 0 rgba(255,255,255,${0.05 + (intensity / 100) * 0.1})`;
-    });
+    // Жидкое стекло
+    document.documentElement.style.setProperty('--glass-opacity', systemConfig.glassOpacity || 0.6);
+    document.documentElement.style.setProperty('--glass-blur', (systemConfig.glassBlur || 20) + 'px');
+    document.documentElement.style.setProperty('--glass-border', systemConfig.glassBorder || 0.1);
 }
 
-// ========== РЕНДЕР РАБОЧЕГО СТОЛА ==========
+// ===== РЕНДЕР ДЕСКТОПА =====
 function renderDesktop() {
     const container = document.getElementById('desktop-icons');
     if (!container) return;
     container.innerHTML = '';
+    
+    // Корзина всегда на месте
     currentDesktopItems.forEach(item => {
-        const icon = document.createElement('div');
-        icon.className = 'desktop-icon';
-        icon.setAttribute('data-id', item.id);
-        
-        // Иконка в зависимости от типа
-        const iconMap = {
-            folder: '<i class="fas fa-folder"></i>',
-            txt: '<i class="fas fa-file-alt"></i>',
-            doc: '<i class="fas fa-file-word"></i>',
-            image: '<i class="fas fa-image"></i>',
-            default: '<i class="fas fa-file"></i>'
-        };
-        
-        let iconType = 'default';
-        if (item.type === 'folder') iconType = 'folder';
-        else if (item.name?.endsWith('.txt')) iconType = 'txt';
-        else if (item.name?.endsWith('.doc')) iconType = 'doc';
-        else if (item.url || item.type === 'image') iconType = 'image';
-        
-        icon.innerHTML = `
-            <div class="icon-img">${iconMap[iconType]}</div>
-            <div class="icon-label">${item.name}</div>
-        `;
-        
-        // ДВОЙНОЙ КЛИК
-        icon.ondblclick = () => {
-            if (item.type === 'folder') openFolder(item);
-            else openFile(item);
-        };
-        
-        // ПКМ
-        icon.oncontextmenu = (e) => {
-            e.preventDefault();
-            showFileContextMenu(e.pageX, e.pageY, item);
-        };
-        
+        if (item.id === 'trash') return;
+        const icon = createDesktopIcon(item);
         container.appendChild(icon);
     });
-    updateTrashIcon();
+    
+    // Корзина
+    const trashIcon = document.createElement('div');
+    trashIcon.className = 'desktop-icon trash-icon';
+    trashIcon.setAttribute('data-id', 'trash');
+    trashIcon.innerHTML = `
+        <div class="icon-img"><i class="fas fa-trash-alt"></i></div>
+        <div class="icon-label">Корзина</div>
+    `;
+    trashIcon.onclick = () => openTrash();
+    trashIcon.oncontextmenu = (e) => {
+        e.preventDefault();
+        showTrashContext(e.pageX, e.pageY);
+    };
+    container.appendChild(trashIcon);
 }
 
-// ========== НАСТРОЙКА (6 ШАГОВ) ==========
-function renderSetupStep() {
-    const stepContent = document.getElementById('setup-step-content');
-    switch(currentStep) {
-        case 1:
-            stepContent.innerHTML = `<h2>Добро пожаловать в K-OS!</h2><p>Давайте настроим вашу систему</p>`;
-            break;
-        case 2:
-            stepContent.innerHTML = `<h2>Выберите язык</h2>
-                <select id="setup-lang" class="glass-select">
-                    <option value="ru">Русский</option><option value="en">English</option>
-                    <option value="es">Español</option><option value="zh">中文</option>
-                </select>`;
-            break;
-        case 3:
-            stepContent.innerHTML = `<h2>Яркость системы</h2><input type="range" id="setup-brightness" min="0" max="100" value="100">`;
-            break;
-        case 4:
-            stepContent.innerHTML = `<h2>Подключение к Wi-Fi</h2><p>Пропустить (демо)</p>`;
-            break;
-        case 5:
-            stepContent.innerHTML = `<h2>Установить пароль для входа</h2><input type="password" id="setup-password" class="glass-input" placeholder="Пароль">`;
-            break;
-        case 6:
-            stepContent.innerHTML = `<h2>Готово!</h2><p>Наслаждайтесь K-OS</p>`;
-            break;
+function createDesktopIcon(item) {
+    const icon = document.createElement('div');
+    icon.className = 'desktop-icon';
+    icon.setAttribute('data-id', item.id);
+    icon.setAttribute('draggable', 'true');
+    
+    if (item.x !== undefined && item.y !== undefined) {
+        icon.style.position = 'absolute';
+        icon.style.left = item.x + 'px';
+        icon.style.top = item.y + 'px';
     }
+    
+    const isImage = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
+    
+    icon.innerHTML = `
+        <div class="icon-img">${item.type === 'folder' ? '<i class="fas fa-folder"></i>' : 
+            isImage ? '<i class="fas fa-image"></i>' : 
+            item.name.endsWith('.txt') ? '<i class="fas fa-file-alt"></i>' :
+            item.name.endsWith('.doc') ? '<i class="fas fa-file-word"></i>' :
+            '<i class="fas fa-file"></i>'}</div>
+        <div class="icon-label">${item.name}</div>
+    `;
+    
+    icon.ondblclick = () => {
+        if (item.type === 'folder') {
+            openFolderWindow(item);
+        } else {
+            openFile(item);
+        }
+    };
+    
+    icon.onclick = (e) => {
+        // Выделение иконки
+        document.querySelectorAll('.desktop-icon').forEach(el => el.style.background = '');
+        icon.style.background = 'rgba(255,255,255,0.1)';
+    };
+    
+    icon.oncontextmenu = (e) => {
+        e.preventDefault();
+        showFileContextMenu(e.pageX, e.pageY, item);
+    };
+    
+    // Drag & Drop для иконок
+    icon.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', item.id);
+        icon.style.opacity = '0.5';
+    });
+    
+    icon.addEventListener('dragend', () => {
+        icon.style.opacity = '1';
+    });
+    
+    return icon;
 }
 
-function nextSetupStep() {
-    if (currentStep === 5) {
-        const pwd = document.getElementById('setup-password')?.value;
-        if (pwd) systemConfig.password = pwd;
-    }
-    if (currentStep < 6) {
-        currentStep++;
-        renderSetupStep();
-        document.querySelectorAll('.step-dot').forEach((dot, i) => {
-            if (i < currentStep) dot.classList.add('active');
-        });
+// ===== ОТКРЫТИЕ ФАЙЛОВ =====
+function openFile(item) {
+    const isImage = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
+    
+    if (isImage) {
+        openImageViewer(item);
+    } else if (item.name.endsWith('.txt') || item.name.endsWith('.doc')) {
+        openNotepad(item);
     } else {
-        saveToFirebase();
-        showScreen(desktop);
-        loadFromFirebase();
+        Swal.fire({
+            title: 'Неизвестный файл',
+            text: `Не могу открыть ${item.name}`,
+            icon: 'info',
+            background: '#1a1a2e',
+            color: '#fff'
+        });
     }
 }
 
-document.getElementById('setup-next')?.addEventListener('click', nextSetupStep);
-document.getElementById('setup-prev')?.addEventListener('click', () => {
-    if (currentStep > 1) { currentStep--; renderSetupStep(); }
-});
+// ===== ПРОСМОТР ИЗОБРАЖЕНИЙ =====
+function openImageViewer(item) {
+    const existing = document.querySelector(`[data-file-id="${item.id}"]`);
+    if (existing) {
+        bringToFront(existing);
+        return;
+    }
+    
+    const win = document.createElement('div');
+    win.className = 'floating-window glass-panel';
+    win.dataset.fileId = item.id;
+    win.style.cssText = `width: 600px; max-width: 90%; top: 10%; left: 20%; z-index: ${windowZIndex++};`;
+    win.innerHTML = `
+        <div class="window-header" style="cursor: move;">
+            <div class="window-title"><i class="fas fa-image"></i> ${item.name}</div>
+            <div class="window-controls">
+                <button class="win-btn minimize" title="Свернуть">−</button>
+                <button class="win-btn maximize" title="На весь экран">⛶</button>
+                <button class="win-btn close" title="Закрыть">✕</button>
+            </div>
+        </div>
+        <div class="window-body" style="padding: 0; display: flex; align-items: center; justify-content: center; min-height: 300px; background: rgba(0,0,0,0.3); border-radius: 0 0 20px 20px;">
+            <img src="${item.content}" alt="${item.name}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 0 0 20px 20px;">
+        </div>
+    `;
+    
+    document.body.appendChild(win);
+    openWindows.push(win);
+    setupWindowControls(win);
+    setupWindowDrag(win);
+    
+    // Закрытие при клике вне
+    win.querySelector('.win-btn.close').onclick = () => closeWindow(win);
+    win.querySelector('.win-btn.minimize').onclick = () => minimizeWindow(win);
+    win.querySelector('.win-btn.maximize').onclick = () => toggleMaximize(win);
+}
 
-// ========== ОТКРЫТИЕ ПАПКИ (НОВОЕ) ==========
-function openFolder(folder) {
-    // Проверяем, открыто ли уже окно
-    const existingWin = document.querySelector(`.folder-window[data-folder-id="${folder.id}"]`);
-    if (existingWin) {
-        existingWin.style.display = 'flex';
-        existingWin.style.zIndex = '5000';
+// ===== БЛОКНОТ =====
+function openNotepad(item) {
+    const existing = document.querySelector(`[data-file-id="${item.id}"]`);
+    if (existing) {
+        bringToFront(existing);
+        return;
+    }
+    
+    const win = document.createElement('div');
+    win.className = 'floating-window glass-panel';
+    win.dataset.fileId = item.id;
+    win.style.cssText = `width: 550px; max-width: 90%; height: 450px; max-height: 80%; top: 10%; left: 20%; z-index: ${windowZIndex++}; display: flex; flex-direction: column;`;
+    win.innerHTML = `
+        <div class="window-header" style="cursor: move; flex-shrink: 0;">
+            <div class="window-title"><i class="fas fa-file-alt"></i> ${item.name}</div>
+            <div class="window-controls">
+                <button class="win-btn minimize">−</button>
+                <button class="win-btn maximize">⛶</button>
+                <button class="win-btn close">✕</button>
+            </div>
+        </div>
+        <div class="notepad-menu">
+            <div class="dropdown">
+                <button>Файл ▾</button>
+                <div class="dropdown-content">
+                    <button data-action="save">💾 Сохранить <span class="shortcut">Ctrl+S</span></button>
+                    <button data-action="save-as">📄 Сохранить как <span class="shortcut">Ctrl+Shift+S</span></button>
+                    <button data-action="save-desktop">🖥 Сохранить на рабочий стол <span class="shortcut">Ctrl+Alt+S</span></button>
+                </div>
+            </div>
+        </div>
+        <div class="window-body" style="flex: 1; padding: 0; display: flex; flex-direction: column;">
+            <textarea id="notepad-content-${item.id}" style="flex: 1; width: 100%; padding: 16px 20px; background: rgba(0,0,0,0.15); color: #e0e0e0; border: none; resize: none; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6; outline: none;">${item.content || ''}</textarea>
+            <div class="notepad-status">
+                <span>Строк: ${(item.content || '').split('\n').length}</span>
+                <span>${item.name}</span>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(win);
+    openWindows.push(win);
+    
+    const textarea = win.querySelector(`#notepad-content-${item.id}`);
+    
+    // Сохранение
+    const saveNotepad = () => {
+        item.content = textarea.value;
+        saveToFirebase();
+        win.querySelector('.notepad-status span:last-child').textContent = '✓ Сохранено';
+        setTimeout(() => {
+            win.querySelector('.notepad-status span:last-child').textContent = item.name;
+        }, 1500);
+    };
+    
+    // Горячие клавиши
+    textarea.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            if (e.shiftKey && e.altKey) {
+                // Сохранить на рабочий стол
+                const newItem = { ...item, id: Date.now() + Math.random(), name: `копия_${item.name}` };
+                currentDesktopItems.push(newItem);
+                saveToFirebase();
+                renderDesktop();
+                Swal.fire({ title: 'Сохранено на рабочий стол', icon: 'success', timer: 1000, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+            } else if (e.shiftKey) {
+                // Сохранить как
+                const newName = prompt('Новое имя файла:', item.name);
+                if (newName) {
+                    const newItem = { ...item, id: Date.now() + Math.random(), name: newName };
+                    currentDesktopItems.push(newItem);
+                    saveToFirebase();
+                    renderDesktop();
+                    Swal.fire({ title: 'Сохранено как ' + newName, icon: 'success', timer: 1000, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+                }
+            } else {
+                saveNotepad();
+            }
+        }
+    });
+    
+    // Кнопки меню
+    win.querySelectorAll('.dropdown-content button').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const action = btn.dataset.action;
+            if (action === 'save') saveNotepad();
+            else if (action === 'save-as') {
+                const newName = prompt('Новое имя файла:', item.name);
+                if (newName) {
+                    const newItem = { ...item, id: Date.now() + Math.random(), name: newName };
+                    currentDesktopItems.push(newItem);
+                    saveToFirebase();
+                    renderDesktop();
+                    Swal.fire({ title: 'Сохранено как ' + newName, icon: 'success', timer: 1000, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+                }
+            } else if (action === 'save-desktop') {
+                const newItem = { ...item, id: Date.now() + Math.random(), name: `копия_${item.name}` };
+                currentDesktopItems.push(newItem);
+                saveToFirebase();
+                renderDesktop();
+                Swal.fire({ title: 'Сохранено на рабочий стол', icon: 'success', timer: 1000, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+            }
+        };
+    });
+    
+    setupWindowControls(win);
+    setupWindowDrag(win);
+}
+
+// ===== ПАПКИ =====
+function openFolderWindow(folder) {
+    const existing = document.querySelector(`[data-folder-id="${folder.id}"]`);
+    if (existing) {
+        bringToFront(existing);
         return;
     }
     
     const win = document.createElement('div');
     win.className = 'floating-window glass-panel folder-window';
-    win.style.cssText = 'width: 600px; height: 400px; top: 15%; left: 20%; z-index: 5000; display: flex; flex-direction: column;';
-    win.setAttribute('data-folder-id', folder.id);
-    win.id = 'folder-window-' + Date.now();
+    win.dataset.folderId = folder.id;
+    win.style.cssText = `width: 500px; max-width: 90%; height: 400px; max-height: 70%; top: 10%; left: 20%; z-index: ${windowZIndex++}; display: flex; flex-direction: column;`;
+    
+    const children = currentDesktopItems.filter(i => i.parentId === folder.id);
     
     win.innerHTML = `
-        <div class="window-header">
-            <div class="window-title">
-                <i class="fas fa-folder"></i>
-                <span>${folder.name}</span>
-            </div>
+        <div class="window-header" style="cursor: move; flex-shrink: 0;">
+            <div class="window-title"><i class="fas fa-folder"></i> ${folder.name}</div>
             <div class="window-controls">
-                <button class="window-btn-min" data-win="${win.id}">─</button>
-                <button class="window-btn-max" data-win="${win.id}">☐</button>
-                <button class="window-btn-close" data-win="${win.id}">✕</button>
+                <button class="win-btn minimize">−</button>
+                <button class="win-btn maximize">⛶</button>
+                <button class="win-btn close">✕</button>
             </div>
         </div>
-        <div class="folder-toolbar">
-            <select class="folder-view-select glass-select">
-                <option value="icons">Огромные значки</option>
-                <option value="small">Мелкие значки</option>
-                <option value="list">Список</option>
-                <option value="table">Таблица</option>
-            </select>
-            <span class="folder-file-count">${folder.children?.length || 0} элементов</span>
+        <div class="folder-view-options">
+            <button class="active" data-view="icons"><i class="fas fa-th"></i></button>
+            <button data-view="list"><i class="fas fa-list"></i></button>
+            <button data-view="details"><i class="fas fa-table"></i></button>
+            <span class="separator"></span>
+            <span style="font-size: 12px; opacity: 0.4; margin-left: auto;">${children.length} элементов</span>
         </div>
-        <div class="folder-content" id="folder-content-${folder.id}">
-            ${(folder.children || []).map(child => `
-                <div class="folder-item" data-id="${child.id}" draggable="true">
-                    <div class="folder-item-icon">${child.type === 'folder' ? '📁' : '📄'}</div>
-                    <div class="folder-item-name">${child.name}</div>
-                </div>
-            `).join('') || '<div class="folder-empty">Папка пуста</div>'}
+        <div class="folder-content" style="flex: 1; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; overflow-y: auto; min-height: 100px;">
+            ${children.length === 0 ? '<div style="width:100%; text-align:center; opacity:0.3; padding:40px;">Папка пуста</div>' : ''}
         </div>
     `;
     
     document.body.appendChild(win);
-    makeDraggable(win);
+    openWindows.push(win);
     
-    // Кнопки окна
-    win.querySelectorAll('.window-btn-min, .window-btn-max, .window-btn-close').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const winId = btn.dataset.win;
-            const action = btn.className.includes('min') ? 'minimize' : 
-                          btn.className.includes('max') ? 'maximize' : 'close';
-            if (action === 'minimize') minimizeWindow(winId);
-            else if (action === 'maximize') toggleMaximize(winId);
-            else if (action === 'close') closeWindow(winId);
-        });
-    });
-    
-    // DROP В ПАПКУ
     const content = win.querySelector('.folder-content');
-    content.addEventListener('dragover', (e) => e.preventDefault());
-    content.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            // Файлы с компьютера в папку
-            handleFileDrop(files, folder);
+    
+    // Рендер содержимого папки
+    function renderFolderContent(view = 'icons') {
+        const items = currentDesktopItems.filter(i => i.parentId === folder.id);
+        content.innerHTML = '';
+        
+        if (items.length === 0) {
+            content.innerHTML = '<div style="width:100%; text-align:center; opacity:0.3; padding:40px;">Папка пуста</div>';
             return;
         }
         
-        if (dragData) {
-            const item = dragData.item;
-            if (item && item.id !== folder.id) {
-                // Удаляем с рабочего стола
-                currentDesktopItems = currentDesktopItems.filter(i => i.id !== item.id);
-                if (!folder.children) folder.children = [];
-                // Проверяем дубликаты
-                const exists = folder.children.find(c => c.id === item.id);
-                if (!exists) {
-                    folder.children.push({...item});
+        if (view === 'list' || view === 'details') {
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 6px 12px; width: 100%; border-radius: 8px; cursor: pointer; transition: all 0.2s;';
+                div.onmouseenter = () => div.style.background = 'rgba(255,255,255,0.05)';
+                div.onmouseleave = () => div.style.background = '';
+                div.innerHTML = `
+                    <i class="fas ${item.type === 'folder' ? 'fa-folder' : 'fa-file'}"></i>
+                    <span>${item.name}</span>
+                    <span style="margin-left: auto; opacity: 0.3; font-size: 12px;">${item.type === 'folder' ? 'Папка' : 'Файл'}</span>
+                `;
+                div.onclick = () => {
+                    if (item.type === 'folder') {
+                        openFolderWindow(item);
+                    } else {
+                        openFile(item);
+                    }
+                };
+                content.appendChild(div);
+            });
+        } else {
+            // Иконки (по умолчанию)
+            items.forEach(item => {
+                const icon = createDesktopIcon(item);
+                icon.style.width = '70px';
+                icon.querySelector('.icon-img').style.fontSize = '28px';
+                content.appendChild(icon);
+            });
+        }
+    }
+    
+    renderFolderContent();
+    
+    // Переключение вида
+    win.querySelectorAll('.folder-view-options button').forEach(btn => {
+        btn.onclick = () => {
+            win.querySelectorAll('.folder-view-options button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderFolderContent(btn.dataset.view);
+        };
+    });
+    
+    // Drag & Drop в папку
+    content.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        content.classList.add('drag-over');
+    });
+    
+    content.addEventListener('dragleave', () => {
+        content.classList.remove('drag-over');
+    });
+    
+    content.addEventListener('drop', (e) => {
+        e.preventDefault();
+        content.classList.remove('drag-over');
+        
+        const id = e.dataTransfer.getData('text/plain');
+        if (!id) return;
+        
+        // Перемещаем файл в папку
+        const item = currentDesktopItems.find(i => i.id == id);
+        if (item && item.id !== folder.id && item.parentId !== folder.id) {
+            // Удаляем из старой папки
+            if (item.parentId) {
+                const oldParent = currentDesktopItems.find(i => i.id === item.parentId);
+                if (oldParent) {
+                    // Ничего не делаем
                 }
-                renderDesktop();
-                refreshFolderWindow(folder.id);
-                saveToFirebase();
             }
+            item.parentId = folder.id;
+            delete item.x;
+            delete item.y;
+            saveToFirebase();
+            renderDesktop();
+            renderFolderContent();
+            // Обновляем заголовок
+            const itemsCount = currentDesktopItems.filter(i => i.parentId === folder.id).length;
+            win.querySelector('.folder-view-options span:last-child').textContent = `${itemsCount} элементов`;
         }
     });
+    
+    setupWindowControls(win);
+    setupWindowDrag(win);
 }
 
-function refreshFolderWindow(folderId) {
-    const windows = document.querySelectorAll('.folder-window');
-    windows.forEach(win => {
-        if (win.dataset.folderId == folderId) {
-            const folder = currentDesktopItems.find(i => i.id == folderId);
-            if (folder) {
-                const content = win.querySelector('.folder-content');
-                if (content) {
-                    content.innerHTML = (folder.children || []).map(child => `
-                        <div class="folder-item" data-id="${child.id}" draggable="true">
-                            <div class="folder-item-icon">${child.type === 'folder' ? '📁' : '📄'}</div>
-                            <div class="folder-item-name">${child.name}</div>
-                        </div>
-                    `).join('') || '<div class="folder-empty">Папка пуста</div>';
-                    
-                    const count = win.querySelector('.folder-file-count');
-                    if (count) count.textContent = `${folder.children?.length || 0} элементов`;
-                }
-            }
-        }
-    });
-}
-
-// ========== ОТКРЫТИЕ ФАЙЛА (НОВОЕ ОКНО) ==========
-function openFile(file) {
-    // Изображение
-    if (file.url || (file.content && file.content.startsWith('data:image'))) {
-        const win = document.getElementById('viewer-window');
-        win.style.display = 'flex';
-        win.style.left = '20%';
-        win.style.top = '15%';
-        win.style.width = '60%';
-        win.style.height = '70%';
-        document.getElementById('viewer-image').src = file.url || file.content;
-        document.getElementById('viewer-title').textContent = file.name || 'Изображение';
-        makeDraggable(win);
+// ===== КОРЗИНА =====
+function openTrash() {
+    const existing = document.getElementById('trash-window');
+    if (existing) {
+        bringToFront(existing);
         return;
     }
     
-    // Текстовый файл
-    if (file.name?.endsWith('.txt') || file.name?.endsWith('.doc')) {
-        const win = document.getElementById('notepad-window');
-        win.style.display = 'flex';
-        win.style.left = '25%';
-        win.style.top = '20%';
-        win.style.width = '50%';
-        win.style.height = '60%';
-        document.getElementById('notepad-content').value = file.content || '';
-        document.getElementById('notepad-title').textContent = file.name || 'Без названия.txt';
-        window.currentFile = file;
-        makeDraggable(win);
+    const win = document.createElement('div');
+    win.id = 'trash-window';
+    win.className = 'floating-window glass-panel';
+    win.style.cssText = `width: 500px; max-width: 90%; height: 400px; max-height: 70%; top: 10%; left: 20%; z-index: ${windowZIndex++}; display: flex; flex-direction: column;`;
+    
+    win.innerHTML = `
+        <div class="window-header" style="cursor: move; flex-shrink: 0;">
+            <div class="window-title"><i class="fas fa-trash-alt"></i> Корзина</div>
+            <div class="window-controls">
+                <button class="win-btn minimize">−</button>
+                <button class="win-btn close">✕</button>
+            </div>
+        </div>
+        <div class="folder-content" style="flex: 1; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; overflow-y: auto; min-height: 100px;">
+            ${trashItems.length === 0 ? '<div class="empty-trash">Корзина пуста</div>' : ''}
+        </div>
+        <div style="padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; gap: 8px; justify-content: flex-end;">
+            <button class="win-btn" style="padding: 6px 16px; border-radius: 8px; background: rgba(255,68,68,0.2); color: #ff4444; border: none; cursor: pointer;" onclick="clearTrash()">🗑 Очистить корзину</button>
+            <button class="win-btn" style="padding: 6px 16px; border-radius: 8px; background: rgba(255,255,255,0.05); color: white; border: none; cursor: pointer;" onclick="restoreAllTrash()">↩ Восстановить всё</button>
+        </div>
+    `;
+    
+    document.body.appendChild(win);
+    openWindows.push(win);
+    
+    renderTrashContent(win);
+    setupWindowControls(win);
+    setupWindowDrag(win);
+}
+
+function renderTrashContent(win) {
+    const content = win.querySelector('.folder-content');
+    if (!content) return;
+    
+    if (trashItems.length === 0) {
+        content.innerHTML = '<div class="empty-trash">Корзина пуста</div>';
         return;
     }
     
+    content.innerHTML = '';
+    trashItems.forEach(item => {
+        const div = document.createElement('div');
+        div.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 6px 12px; width: 100%; border-radius: 8px; cursor: pointer; transition: all 0.2s;';
+        div.onmouseenter = () => div.style.background = 'rgba(255,255,255,0.05)';
+        div.onmouseleave = () => div.style.background = '';
+        div.innerHTML = `
+            <i class="fas fa-file"></i>
+            <span>${item.name}</span>
+            <span style="margin-left: auto; opacity: 0.3; font-size: 12px;">${item.type || 'Файл'}</span>
+            <button onclick="restoreFromTrash('${item.id}')" style="background: none; border: none; color: #4ecdc4; cursor: pointer;">↩</button>
+        `;
+        content.appendChild(div);
+    });
+}
+
+// Глобальные функции для корзины
+window.restoreFromTrash = function(id) {
+    const index = trashItems.findIndex(i => i.id == id);
+    if (index !== -1) {
+        const item = trashItems.splice(index, 1)[0];
+        delete item.parentId;
+        currentDesktopItems.push(item);
+        saveToFirebase();
+        renderDesktop();
+        const win = document.getElementById('trash-window');
+        if (win) renderTrashContent(win);
+    }
+};
+
+window.clearTrash = function() {
     Swal.fire({
-        title: 'Ошибка',
-        text: 'Не удаётся открыть этот файл',
-        icon: 'error',
+        title: 'Очистить корзину?',
+        text: 'Это действие нельзя отменить',
+        icon: 'warning',
         background: '#1a1a2e',
-        color: '#fff'
+        color: '#fff',
+        showCancelButton: true,
+        confirmButtonText: 'Очистить',
+        cancelButtonText: 'Отмена'
+    }).then(result => {
+        if (result.isConfirmed) {
+            trashItems = [];
+            saveToFirebase();
+            const win = document.getElementById('trash-window');
+            if (win) renderTrashContent(win);
+        }
+    });
+};
+
+window.restoreAllTrash = function() {
+    trashItems.forEach(item => {
+        delete item.parentId;
+        currentDesktopItems.push(item);
+    });
+    trashItems = [];
+    saveToFirebase();
+    renderDesktop();
+    const win = document.getElementById('trash-window');
+    if (win) renderTrashContent(win);
+};
+
+// ===== УПРАВЛЕНИЕ ОКНАМИ =====
+function setupWindowControls(win) {
+    win.querySelector('.win-btn.close').onclick = () => closeWindow(win);
+    win.querySelector('.win-btn.minimize').onclick = () => minimizeWindow(win);
+    const maxBtn = win.querySelector('.win-btn.maximize');
+    if (maxBtn) maxBtn.onclick = () => toggleMaximize(win);
+}
+
+function closeWindow(win) {
+    win.style.animation = 'windowAppear 0.2s reverse';
+    setTimeout(() => {
+        win.remove();
+        openWindows = openWindows.filter(w => w !== win);
+    }, 200);
+}
+
+function minimizeWindow(win) {
+    win.style.display = 'none';
+    // Можно добавить кнопку в док для восстановления
+}
+
+function toggleMaximize(win) {
+    win.classList.toggle('maximized');
+}
+
+function bringToFront(win) {
+    win.style.zIndex = windowZIndex++;
+}
+
+function setupWindowDrag(win) {
+    const header = win.querySelector('.window-header');
+    let isDragging = false;
+    let offsetX, offsetY;
+    
+    header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.win-btn') || e.target.closest('.window-controls')) return;
+        isDragging = true;
+        const rect = win.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        win.style.transform = 'none';
+        win.style.left = rect.left + 'px';
+        win.style.top = rect.top + 'px';
+        bringToFront(win);
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        win.style.left = (e.clientX - offsetX) + 'px';
+        win.style.top = (e.clientY - offsetY) + 'px';
+    });
+    
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
     });
 }
 
-// ========== КОНТЕКСТНОЕ МЕНЮ ФАЙЛА ==========
+// ===== КОНТЕКСТНОЕ МЕНЮ =====
 function showFileContextMenu(x, y, item) {
-    const menu = document.getElementById('file-context-menu');
+    const menu = document.getElementById('file-context-menu') || createFileContextMenu();
     menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
-    menu.style.top = Math.min(y, window.innerHeight - 300) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - 200) + 'px';
     menu.style.display = 'flex';
     window.selectedFile = item;
     
-    document.querySelectorAll('#file-context-menu .context-item').forEach(btn => {
+    menu.querySelectorAll('.context-item').forEach(btn => {
         btn.onclick = () => {
             const action = btn.dataset.action;
             if (action === 'rename') {
@@ -399,296 +692,254 @@ function showFileContextMenu(x, y, item) {
                     saveToFirebase();
                 }
             } else if (action === 'delete') {
-                trashItems.push({...item});
+                trashItems.push({ ...item });
                 currentDesktopItems = currentDesktopItems.filter(i => i.id !== item.id);
                 renderDesktop();
                 saveToFirebase();
-                updateTrashIcon();
             } else if (action === 'open') {
-                if (item.type === 'folder') openFolder(item);
+                if (item.type === 'folder') openFolderWindow(item);
                 else openFile(item);
-            } else if (action === 'cut') {
-                clipboard = { item, action: 'cut' };
-            } else if (action === 'copy') {
-                clipboard = { item, action: 'copy' };
             }
             menu.style.display = 'none';
         };
     });
 }
 
-// ========== КОРЗИНА (КАК В ВИНДОВС) ==========
-function updateTrashIcon() {
-    const trashIcon = document.getElementById('trash');
-    if (trashIcon) {
-        const count = trashItems.length;
-        const label = trashIcon.querySelector('.icon-label');
-        if (label) {
-            label.textContent = count > 0 ? `Корзина (${count})` : 'Корзина';
-        }
-        trashIcon.style.opacity = count > 0 ? '1' : '0.5';
-    }
+function createFileContextMenu() {
+    const menu = document.createElement('div');
+    menu.id = 'file-context-menu';
+    menu.className = 'context-menu glass-panel';
+    menu.style.display = 'none';
+    menu.innerHTML = `
+        <div class="context-item" data-action="open"><i class="fas fa-folder-open"></i> Открыть</div>
+        <div class="context-item" data-action="rename"><i class="fas fa-pen"></i> Переименовать</div>
+        <div class="context-item" data-action="delete"><i class="fas fa-trash"></i> Удалить</div>
+    `;
+    document.body.appendChild(menu);
+    return menu;
 }
 
-document.getElementById('trash')?.addEventListener('dblclick', () => {
-    openTrash();
-});
-
-document.getElementById('trash')?.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    openTrash();
-});
-
-function openTrash() {
-    const modal = document.getElementById('trash-modal');
-    const content = document.getElementById('trash-content');
-    if (!modal || !content) return;
+function showTrashContext(x, y) {
+    const menu = document.getElementById('context-menu') || createContextMenu();
+    menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - 200) + 'px';
+    menu.style.display = 'flex';
     
-    if (trashItems.length === 0) {
-        content.innerHTML = '<div class="trash-empty">Корзина пуста</div>';
-    } else {
-        content.innerHTML = trashItems.map((item, index) => `
-            <div class="trash-item">
-                <span>${item.type === 'folder' ? '📁' : '📄'} ${item.name}</span>
-                <div class="trash-actions">
-                    <button onclick="window.restoreItem(${index})" class="window-btn">Восстановить</button>
-                    <button onclick="window.deletePermanently(${index})" class="window-btn" style="background: rgba(255,0,0,0.3);">Удалить</button>
-                </div>
-            </div>
-        `).join('');
-    }
-    
-    modal.style.display = 'flex';
-}
-
-function closeTrash() {
-    document.getElementById('trash-modal').style.display = 'none';
-}
-
-window.restoreItem = function(index) {
-    const item = trashItems[index];
-    if (item) {
-        currentDesktopItems.push({...item});
-        trashItems.splice(index, 1);
-        renderDesktop();
-        saveToFirebase();
-        openTrash();
-        updateTrashIcon();
-    }
-};
-
-window.deletePermanently = function(index) {
-    trashItems.splice(index, 1);
-    renderDesktop();
-    saveToFirebase();
-    openTrash();
-    updateTrashIcon();
-};
-
-window.emptyTrash = function() {
-    Swal.fire({
-        title: 'Очистить корзину?',
-        text: 'Все файлы будут удалены навсегда',
-        icon: 'warning',
-        background: '#1a1a2e',
-        color: '#fff',
-        showCancelButton: true,
-        confirmButtonText: 'Очистить',
-        cancelButtonText: 'Отмена'
-    }).then(result => {
-        if (result.isConfirmed) {
-            trashItems = [];
-            renderDesktop();
-            saveToFirebase();
-            openTrash();
-            updateTrashIcon();
-        }
-    });
-};
-
-// ========== УПРАВЛЕНИЕ ОКНАМИ ==========
-function minimizeWindow(id) {
-    const win = document.getElementById(id);
-    if (win) {
-        if (win.dataset.minimized === 'true') {
-            win.style.display = 'flex';
-            win.dataset.minimized = 'false';
-        } else {
-            win.style.display = 'none';
-            win.dataset.minimized = 'true';
-        }
-    }
-}
-
-function toggleMaximize(id) {
-    const win = document.getElementById(id);
-    if (!win) return;
-    
-    if (win.dataset.maximized === 'true') {
-        win.style.width = win.dataset.oldWidth || '50%';
-        win.style.height = win.dataset.oldHeight || '60%';
-        win.style.left = win.dataset.oldLeft || '20%';
-        win.style.top = win.dataset.oldTop || '15%';
-        win.dataset.maximized = 'false';
-    } else {
-        win.dataset.oldWidth = win.style.width;
-        win.dataset.oldHeight = win.style.height;
-        win.dataset.oldLeft = win.style.left;
-        win.dataset.oldTop = win.style.top;
-        win.style.width = '100%';
-        win.style.height = '100%';
-        win.style.left = '0';
-        win.style.top = '0';
-        win.dataset.maximized = 'true';
-    }
-}
-
-function closeWindow(id) {
-    const win = document.getElementById(id);
-    if (win) {
-        if (win.id === 'notepad-window' || win.id === 'viewer-window') {
-            win.style.display = 'none';
-        } else {
-            win.remove();
-        }
-    }
-}
-
-// ========== ПЕРЕТАСКИВАНИЕ ОКОН ==========
-function makeDraggable(windowElement) {
-    const header = windowElement.querySelector('.window-header');
-    if (!header) return;
-    
-    let isDragging = false;
-    let offsetX, offsetY;
-    
-    header.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.window-controls')) return;
-        isDragging = true;
-        const rect = windowElement.getBoundingClientRect();
-        offsetX = e.clientX - rect.left;
-        offsetY = e.clientY - rect.top;
-        windowElement.style.transform = 'none';
-        windowElement.style.left = rect.left + 'px';
-        windowElement.style.top = rect.top + 'px';
-        windowElement.style.position = 'fixed';
-        windowElement.style.zIndex = '9999';
-    });
-    
-    document.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        windowElement.style.left = (e.clientX - offsetX) + 'px';
-        windowElement.style.top = (e.clientY - offsetY) + 'px';
-    });
-    
-    document.addEventListener('mouseup', () => {
-        isDragging = false;
+    menu.querySelectorAll('.context-item').forEach(btn => {
+        btn.onclick = () => {
+            const action = btn.dataset.action;
+            if (action === 'open-trash') openTrash();
+            else if (action === 'clear-trash') window.clearTrash();
+            menu.style.display = 'none';
+        };
     });
 }
 
-// ========== ОБРАБОТЧИКИ КНОПОК ОКОН ==========
-document.querySelectorAll('.window-btn-min, .window-btn-max, .window-btn-close').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const winId = btn.dataset.win;
-        if (!winId) return;
-        const action = btn.className.includes('min') ? 'minimize' : 
-                      btn.className.includes('max') ? 'maximize' : 'close';
-        if (action === 'minimize') minimizeWindow(winId);
-        else if (action === 'maximize') toggleMaximize(winId);
-        else if (action === 'close') closeWindow(winId);
-    });
-});
-
-// ========== DRAG & DROP ФАЙЛОВ С КОМПЬЮТЕРА (ОДИН ФАЙЛ) ==========
-async function handleFileDrop(files, targetFolder = null) {
-    if (!files || files.length === 0) return;
-    
-    // Берем ТОЛЬКО ПЕРВЫЙ файл
-    const file = files[0];
-    
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-        try {
-            let content = event.target.result;
-            let url = null;
-            let type = 'file';
-            
-            if (file.type.startsWith('image/')) {
-                const formData = new FormData();
-                formData.append('image', content.split(',')[1]);
-                formData.append('key', IMGBB_KEY);
-                const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
-                const json = await res.json();
-                if (json.success) {
-                    url = json.data.url;
-                    content = url;
-                    type = 'image';
-                }
-            }
-            
-            const newFile = {
-                id: Date.now() + Math.random(),
-                name: file.name,
-                type: type,
-                content: content,
-                url: url
-            };
-            
-            if (targetFolder) {
-                // В папку
-                if (!targetFolder.children) targetFolder.children = [];
-                targetFolder.children.push(newFile);
-                refreshFolderWindow(targetFolder.id);
-            } else {
-                // На рабочий стол - проверяем дубликаты
-                const existing = currentDesktopItems.find(i => i.name === file.name);
-                if (existing) {
-                    Swal.fire({
-                        title: 'Файл уже существует',
-                        text: `Файл "${file.name}" уже есть`,
-                        icon: 'warning',
-                        background: '#1a1a2e',
-                        color: '#fff'
-                    });
-                    return;
-                }
-                currentDesktopItems.push(newFile);
-                renderDesktop();
-            }
-            saveToFirebase();
-        } catch (err) {
-            console.error('Ошибка загрузки файла:', err);
-            Swal.fire({
-                title: 'Ошибка',
-                text: 'Не удалось загрузить файл',
-                icon: 'error',
-                background: '#1a1a2e',
-                color: '#fff'
-            });
-        }
-    };
-    reader.readAsDataURL(file);
+function createContextMenu() {
+    const menu = document.createElement('div');
+    menu.id = 'context-menu';
+    menu.className = 'context-menu glass-panel';
+    menu.style.display = 'none';
+    menu.innerHTML = `
+        <div class="context-item" data-action="open-trash"><i class="fas fa-trash-alt"></i> Открыть корзину</div>
+        <div class="context-item" data-action="clear-trash"><i class="fas fa-trash"></i> Очистить корзину</div>
+        <div class="context-item" data-action="personalize"><i class="fas fa-palette"></i> Персонализация</div>
+        <div class="context-item" data-action="create-folder"><i class="fas fa-folder-plus"></i> Создать папку</div>
+        <div class="context-item" data-action="create-file-txt"><i class="fas fa-file-alt"></i> Создать .txt</div>
+        <div class="context-item" data-action="refresh"><i class="fas fa-sync-alt"></i> Обновить</div>
+    `;
+    document.body.appendChild(menu);
+    return menu;
 }
 
+// ===== DRAG & DROP ФАЙЛОВ =====
 document.addEventListener('dragover', (e) => e.preventDefault());
+
 document.addEventListener('drop', async (e) => {
     e.preventDefault();
     const files = e.dataTransfer.files;
     if (!files.length) return;
     
-    const target = e.target.closest('#desktop') || e.target.closest('#desktop-icons');
-    if (!target) return;
+    const target = e.target.closest('#desktop') || e.target.closest('#desktop-icons') || e.target.closest('.folder-content');
+    const isFolder = target && target.closest('.folder-content');
+    const folderId = isFolder ? target.closest('.floating-window')?.dataset.folderId : null;
     
-    await handleFileDrop(files);
+    for (let file of files) {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                let content = event.target.result;
+                let url = null;
+                let isImage = file.type.startsWith('image/');
+                
+                if (isImage) {
+                    const formData = new FormData();
+                    formData.append('image', content.split(',')[1]);
+                    formData.append('key', IMGBB_KEY);
+                    const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+                    const json = await res.json();
+                    if (json.success) {
+                        url = json.data.url;
+                        content = url;
+                    }
+                }
+                
+                const newItem = {
+                    id: Date.now() + Math.random() * 1000,
+                    name: file.name,
+                    type: 'file',
+                    content: content,
+                    url: url
+                };
+                
+                if (folderId) {
+                    newItem.parentId = folderId;
+                }
+                
+                currentDesktopItems.push(newItem);
+                renderDesktop();
+                saveToFirebase();
+                
+                // Обновляем открытую папку
+                if (folderId) {
+                    const folderWin = document.querySelector(`[data-folder-id="${folderId}"]`);
+                    if (folderWin) {
+                        const content = folderWin.querySelector('.folder-content');
+                        const items = currentDesktopItems.filter(i => i.parentId == folderId);
+                        folderWin.querySelector('.folder-view-options span:last-child').textContent = `${items.length} элементов`;
+                        // Перерендер содержимого
+                        const activeView = folderWin.querySelector('.folder-view-options .active');
+                        const view = activeView ? activeView.dataset.view : 'icons';
+                        renderFolderContent(folderWin, view);
+                    }
+                }
+            } catch (err) {
+                console.error('Upload error:', err);
+            }
+        };
+        reader.readAsDataURL(file);
+    }
 });
 
-// ========== АВТОРИЗАЦИЯ ==========
+// ===== ПЕРСОНАЛИЗАЦИЯ =====
+document.addEventListener('DOMContentLoaded', () => {
+    const personalizeBtn = document.querySelector('[data-action="personalize"]');
+    if (personalizeBtn) {
+        personalizeBtn.addEventListener('click', () => {
+            document.getElementById('personalize-modal').style.display = 'flex';
+            document.getElementById('context-menu').style.display = 'none';
+        });
+    }
+    
+    // Закрытие модалки
+    document.querySelector('.modal-close')?.addEventListener('click', () => {
+        document.getElementById('personalize-modal').style.display = 'none';
+    });
+    
+    // Обои
+    document.querySelectorAll('.wallpaper-item').forEach(item => {
+        item.onclick = () => {
+            const url = item.style.backgroundImage.slice(5, -2);
+            systemConfig.wallpaper = url;
+            applyConfig();
+            document.querySelectorAll('.wallpaper-item').forEach(el => el.style.border = '2px solid transparent');
+            item.style.border = '2px solid #667eea';
+        };
+    });
+    
+    // Выбор языка (красивый)
+    const langContainer = document.querySelector('.language-selector') || createLanguageSelector();
+    
+    // Тема
+    document.querySelectorAll('.theme-option').forEach(opt => {
+        opt.onclick = () => {
+            document.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+            systemConfig.theme = opt.dataset.theme;
+            applyConfig();
+        };
+    });
+    
+    // Ползунок жидкого стекла
+    const glassSlider = document.getElementById('glass-intensity');
+    if (glassSlider) {
+        glassSlider.value = systemConfig.glassOpacity * 100 || 60;
+        glassSlider.oninput = () => {
+            const val = glassSlider.value / 100;
+            systemConfig.glassOpacity = val;
+            document.documentElement.style.setProperty('--glass-opacity', val);
+        };
+    }
+    
+    // Сохранение
+    document.getElementById('save-personalize')?.addEventListener('click', () => {
+        const lang = document.querySelector('.lang-option.active')?.dataset.lang || systemConfig.language;
+        systemConfig.language = lang;
+        saveToFirebase();
+        document.getElementById('personalize-modal').style.display = 'none';
+        Swal.fire({
+            title: 'Сохранено!',
+            text: 'Настройки персонализации обновлены',
+            icon: 'success',
+            timer: 1500,
+            showConfirmButton: false,
+            background: '#1a1a2e',
+            color: '#fff'
+        });
+    });
+});
+
+function createLanguageSelector() {
+    const section = document.querySelector('.settings-section:has(h4:contains("Язык"))');
+    if (!section) return null;
+    
+    const container = document.createElement('div');
+    container.className = 'language-selector';
+    
+    const languages = [
+        { code: 'ru', label: '🇷🇺 Русский' },
+        { code: 'en', label: '🇬🇧 English' },
+        { code: 'es', label: '🇪🇸 Español' },
+        { code: 'zh', label: '🇨🇳 中文' },
+        { code: 'de', label: '🇩🇪 Deutsch' },
+        { code: 'fr', label: '🇫🇷 Français' },
+        { code: 'pt', label: '🇵🇹 Português' },
+        { code: 'ar', label: '🇸🇦 العربية' },
+        { code: 'ja', label: '🇯🇵 日本語' },
+        { code: 'ko', label: '🇰🇷 한국어' }
+    ];
+    
+    languages.forEach(lang => {
+        const btn = document.createElement('button');
+        btn.className = `lang-option ${systemConfig.language === lang.code ? 'active' : ''}`;
+        btn.dataset.lang = lang.code;
+        btn.textContent = lang.label;
+        btn.onclick = () => {
+            document.querySelectorAll('.lang-option').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        };
+        container.appendChild(btn);
+    });
+    
+    // Заменяем select на наш красивый
+    const select = section.querySelector('select');
+    if (select) {
+        select.style.display = 'none';
+        section.appendChild(container);
+    }
+    
+    return container;
+}
+
+// ===== АВТОРИЗАЦИЯ =====
 document.getElementById('do-login')?.addEventListener('click', async () => {
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
     try {
         await signInWithEmailAndPassword(auth, email, password);
-    } catch(e) { Swal.fire('Ошибка', e.message, 'error'); }
+    } catch(e) { 
+        Swal.fire('Ошибка', e.message, 'error');
+    }
 });
 
 document.getElementById('do-register')?.addEventListener('click', async () => {
@@ -700,8 +951,9 @@ document.getElementById('do-register')?.addEventListener('click', async () => {
     try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: name });
-        Swal.fire('Успешно!', 'Аккаунт создан', 'success');
-    } catch(e) { Swal.fire('Ошибка', e.message, 'error'); }
+    } catch(e) { 
+        Swal.fire('Ошибка', e.message, 'error');
+    }
 });
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -717,7 +969,6 @@ document.getElementById('submit-login')?.addEventListener('click', () => {
     const pwd = document.getElementById('login-password').value;
     if (pwd === systemConfig.password) {
         showScreen(desktop);
-        renderDesktop();
     } else {
         Swal.fire('Ошибка', 'Неверный пароль', 'error');
     }
@@ -725,14 +976,22 @@ document.getElementById('submit-login')?.addEventListener('click', () => {
 
 document.getElementById('logout-full')?.addEventListener('click', () => signOut(auth));
 
-// ========== AUTH STATE ==========
+// ===== МЕНЮ ПУСК =====
+document.getElementById('start-button')?.addEventListener('click', () => {
+    const menu = document.getElementById('start-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+});
+
+// ===== AUTH STATE =====
 onAuthStateChanged(auth, async (user) => {
     console.log("Auth state changed:", user ? "Пользователь есть" : "Нет пользователя");
     
     try {
         if (user) {
+            console.log("Загрузка данных пользователя...");
             currentUser = user;
             await loadFromFirebase();
+            console.log("Данные загружены");
             
             if (systemConfig.password) {
                 showScreen(loginScreen);
@@ -740,205 +999,137 @@ onAuthStateChanged(auth, async (user) => {
                 showScreen(desktop);
             }
         } else {
+            console.log("Нет пользователя, показываем экран авторизации");
             currentStep = 1;
             showScreen(authScreen);
             renderSetupStep();
         }
     } catch (error) {
         console.error("Ошибка при загрузке:", error);
-        Swal.fire({
-            title: "Ошибка",
-            text: "Не удалось загрузить систему: " + error.message,
-            icon: "error",
-            background: "#1a1a2e",
-            color: "#fff"
-        });
     } finally {
         showLoading(false);
     }
 });
 
-// ========== МЕНЮ ПУСК ==========
-document.getElementById('start-button')?.addEventListener('click', () => {
-    const menu = document.getElementById('start-menu');
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-});
-
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('#start-button') && !e.target.closest('#start-menu')) {
-        document.getElementById('start-menu').style.display = 'none';
-    }
-    if (!e.target.closest('.context-menu')) {
-        document.getElementById('context-menu').style.display = 'none';
-        document.getElementById('file-context-menu').style.display = 'none';
-    }
-});
-
-// ========== ПЕРСОНАЛИЗАЦИЯ (НОВОЕ) ==========
-document.querySelector('[data-action="personalize"]')?.addEventListener('click', () => {
-    document.getElementById('personalize-modal').style.display = 'flex';
-});
-
-document.querySelector('.modal-close')?.addEventListener('click', () => {
-    document.getElementById('personalize-modal').style.display = 'none';
-});
-
-document.querySelectorAll('.wallpaper-item').forEach(item => {
-    item.onclick = () => {
-        systemConfig.wallpaper = item.style.backgroundImage.slice(5, -2);
-        applyConfig();
-        saveToFirebase();
-    };
-});
-
-document.getElementById('save-personalize')?.addEventListener('click', () => {
-    const lang = document.getElementById('system-language').value;
-    systemConfig.language = lang;
-    systemConfig.glassIntensity = parseInt(document.getElementById('glass-intensity').value) || 60;
-    document.getElementById('glass-value').textContent = systemConfig.glassIntensity + '%';
-    applyConfig();
-    saveToFirebase();
-    document.getElementById('personalize-modal').style.display = 'none';
+// ===== НАСТРОЙКА =====
+function renderSetupStep() {
+    const stepContent = document.getElementById('setup-step-content');
+    if (!stepContent) return;
     
-    Swal.fire({
-        title: 'Сохранено!',
-        text: 'Настройки применены',
-        icon: 'success',
-        background: '#1a1a2e',
-        color: '#fff',
-        timer: 1500
-    });
-});
+    switch(currentStep) {
+        case 1:
+            stepContent.innerHTML = `<h2>Добро пожаловать в K-OS!</h2><p>Давайте настроим вашу систему</p>`;
+            break;
+        case 2:
+            stepContent.innerHTML = `<h2>Выберите язык</h2>
+                <div class="language-selector">
+                    ${['ru|🇷🇺 Русский', 'en|🇬🇧 English', 'es|🇪🇸 Español', 'zh|🇨🇳 中文', 'de|🇩🇪 Deutsch', 'fr|🇫🇷 Français', 'pt|🇵🇹 Português', 'ar|🇸🇦 العربية', 'ja|🇯🇵 日本語', 'ko|🇰🇷 한국어'].map(l => {
+                        const [code, label] = l.split('|');
+                        return `<button class="lang-option ${code === 'ru' ? 'active' : ''}" data-lang="${code}">${label}</button>`;
+                    }).join('')}
+                </div>`;
+            break;
+        case 3:
+            stepContent.innerHTML = `<h2>Настройка жидкого стекла</h2>
+                <p style="opacity:0.6; font-size:14px;">Прозрачность интерфейса</p>
+                <input type="range" id="setup-glass" min="0.1" max="0.9" step="0.05" value="0.6" style="width:100%; margin-top:12px;">
+                <div class="glass-slider-label"><span>Прозрачный</span><span>Непрозрачный</span></div>`;
+            break;
+        case 4:
+            stepContent.innerHTML = `<h2>Подключение к Wi-Fi</h2><p style="opacity:0.6;">Пропустить (демо)</p>`;
+            break;
+        case 5:
+            stepContent.innerHTML = `<h2>Установить пароль для входа</h2>
+                <input type="password" id="setup-password" class="glass-input" placeholder="Пароль" style="width:100%; margin-top:12px; padding:12px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); border-radius:12px; color:white;">`;
+            break;
+        case 6:
+            stepContent.innerHTML = `<h2>Готово!</h2><p>Наслаждайтесь K-OS</p>`;
+            break;
+    }
+}
 
-document.getElementById('glass-intensity')?.addEventListener('input', function() {
-    document.getElementById('glass-value').textContent = this.value + '%';
-    // Предпросмотр
-    const temp = systemConfig.glassIntensity;
-    systemConfig.glassIntensity = parseInt(this.value);
-    applyConfig();
-    systemConfig.glassIntensity = temp;
-});
-
-document.querySelectorAll('.theme-option').forEach(opt => {
-    opt.onclick = () => {
-        document.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
-        opt.classList.add('active');
-        systemConfig.theme = opt.dataset.theme;
-        applyConfig();
+function nextSetupStep() {
+    if (currentStep === 5) {
+        const pwd = document.getElementById('setup-password')?.value;
+        if (pwd) systemConfig.password = pwd;
+    }
+    if (currentStep === 3) {
+        const val = document.getElementById('setup-glass')?.value;
+        if (val) systemConfig.glassOpacity = parseFloat(val);
+    }
+    if (currentStep === 2) {
+        const active = document.querySelector('.lang-option.active');
+        if (active) systemConfig.language = active.dataset.lang;
+    }
+    
+    if (currentStep < 6) {
+        currentStep++;
+        renderSetupStep();
+        document.querySelectorAll('.step-dot').forEach((dot, i) => {
+            if (i < currentStep) dot.classList.add('active');
+        });
+    } else {
         saveToFirebase();
-    };
-});
+        showScreen(desktop);
+        loadFromFirebase();
+    }
+}
 
-// ========== КОНТЕКСТНОЕ МЕНЮ РАБОЧЕГО СТОЛА ==========
-desktop?.addEventListener('contextmenu', (e) => {
-    if (e.target === desktop || e.target.id === 'desktop-icons') {
-        e.preventDefault();
-        const menu = document.getElementById('context-menu');
-        menu.style.left = Math.min(e.pageX, window.innerWidth - 220) + 'px';
-        menu.style.top = Math.min(e.pageY, window.innerHeight - 300) + 'px';
-        menu.style.display = 'flex';
+document.getElementById('setup-next')?.addEventListener('click', nextSetupStep);
+document.getElementById('setup-prev')?.addEventListener('click', () => {
+    if (currentStep > 1) { 
+        currentStep--; 
+        renderSetupStep(); 
+        document.querySelectorAll('.step-dot').forEach((dot, i) => {
+            if (i < currentStep) dot.classList.add('active');
+            else dot.classList.remove('active');
+        });
     }
 });
 
-document.querySelectorAll('#context-menu .context-item').forEach(btn => {
-    btn.onclick = () => {
-        const action = btn.dataset.action;
-        if (action === 'personalize') {
-            document.getElementById('personalize-modal').style.display = 'flex';
-        }
-        if (action === 'create-folder') {
-            currentDesktopItems.push({ 
-                id: Date.now() + Math.random(), 
-                name: 'Новая папка', 
-                type: 'folder', 
-                children: [] 
-            });
-            renderDesktop();
-            saveToFirebase();
-        }
-        if (action === 'create-file-txt') {
-            currentDesktopItems.push({ 
-                id: Date.now() + Math.random(), 
-                name: 'новый.txt', 
-                type: 'file', 
-                content: '' 
-            });
-            renderDesktop();
-            saveToFirebase();
-        }
-        if (action === 'create-file-doc') {
-            currentDesktopItems.push({ 
-                id: Date.now() + Math.random(), 
-                name: 'новый.doc', 
-                type: 'file', 
-                content: '' 
-            });
-            renderDesktop();
-            saveToFirebase();
-        }
-        if (action === 'refresh') {
-            renderDesktop();
-        }
-        if (action === 'upload-wallpaper') {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = async (ev) => {
-                    try {
-                        const formData = new FormData();
-                        formData.append('image', ev.target.result.split(',')[1]);
-                        formData.append('key', IMGBB_KEY);
-                        const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
-                        const json = await res.json();
-                        if (json.success) {
-                            systemConfig.wallpaper = json.data.url;
-                            applyConfig();
-                            saveToFirebase();
-                            Swal.fire({
-                                title: 'Успешно!',
-                                text: 'Обои обновлены',
-                                icon: 'success',
-                                background: '#1a1a2e',
-                                color: '#fff',
-                                timer: 1500
-                            });
-                        }
-                    } catch (err) { console.error(err); }
-                };
-                reader.readAsDataURL(file);
+// Функция для рендера содержимого папки (глобальная)
+function renderFolderContent(win, view = 'icons') {
+    const folderId = win.dataset.folderId;
+    const content = win.querySelector('.folder-content');
+    if (!content) return;
+    
+    const items = currentDesktopItems.filter(i => i.parentId == folderId);
+    content.innerHTML = '';
+    
+    if (items.length === 0) {
+        content.innerHTML = '<div style="width:100%; text-align:center; opacity:0.3; padding:40px;">Папка пуста</div>';
+        return;
+    }
+    
+    if (view === 'list' || view === 'details') {
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 6px 12px; width: 100%; border-radius: 8px; cursor: pointer; transition: all 0.2s;';
+            div.onmouseenter = () => div.style.background = 'rgba(255,255,255,0.05)';
+            div.onmouseleave = () => div.style.background = '';
+            div.innerHTML = `
+                <i class="fas ${item.type === 'folder' ? 'fa-folder' : 'fa-file'}"></i>
+                <span>${item.name}</span>
+                <span style="margin-left: auto; opacity: 0.3; font-size: 12px;">${item.type === 'folder' ? 'Папка' : 'Файл'}</span>
+            `;
+            div.onclick = () => {
+                if (item.type === 'folder') {
+                    openFolderWindow(item);
+                } else {
+                    openFile(item);
+                }
             };
-            input.click();
-        }
-        document.getElementById('context-menu').style.display = 'none';
-    };
-});
-
-// ========== СОХРАНЕНИЕ БЛОКНОТА ==========
-document.getElementById('save-notepad')?.addEventListener('click', () => {
-    const content = document.getElementById('notepad-content').value;
-    if (window.currentFile) {
-        window.currentFile.content = content;
-        saveToFirebase();
-        document.getElementById('notepad-status').textContent = 'Сохранено';
-        setTimeout(() => {
-            document.getElementById('notepad-status').textContent = 'Готово';
-        }, 2000);
+            content.appendChild(div);
+        });
+    } else {
+        items.forEach(item => {
+            const icon = createDesktopIcon(item);
+            icon.style.width = '70px';
+            icon.querySelector('.icon-img').style.fontSize = '28px';
+            content.appendChild(icon);
+        });
     }
-});
+}
 
-document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        const notepad = document.getElementById('notepad-window');
-        if (notepad && notepad.style.display !== 'none') {
-            document.getElementById('save-notepad')?.click();
-        }
-    }
-});
-
-console.log('✅ K-OS загружена!');
-console.log('✨ Система полностью готова к работе!');
+console.log('✅ K-OS полностью обновлён!');
+console.log('✅ Добавлены: работающие окна, папки, корзина, автосохранение, жидкое стекло');
