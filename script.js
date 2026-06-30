@@ -32,6 +32,7 @@ let isDragging = false;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
 let dragWindow = null;
+let dragData = null;
 
 const loadingScreen = document.getElementById('loading-screen');
 const authScreen = document.getElementById('auth-screen');
@@ -1099,7 +1100,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 // ===== ПЕРЕТАСКИВАНИЕ ФАЙЛОВ ПО РАБОЧЕМУ СТОЛУ =====
-let dragData = null;
+
 
 document.addEventListener('dragstart', (e) => {
     const icon = e.target.closest('.desktop-icon');
