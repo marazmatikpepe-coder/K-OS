@@ -501,7 +501,7 @@ function openFolderWindow(folder) {
     
     const content = win.querySelector('.folder-content');
     
-    function renderFolderContent(view = 'icons') {
+   function renderFolderContent(view = 'icons') {
     const items = currentDesktopItems.filter(i => i.parentId === folder.id);
     content.innerHTML = '';
     
@@ -559,54 +559,7 @@ function openFolderWindow(folder) {
             content.appendChild(icon);
         });
     }
-}
-
-renderFolderContent();
-
-// Переключение вида
-win.querySelectorAll('.view-btn').forEach(btn => {
-    btn.onclick = () => {
-        win.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        renderFolderContent(btn.dataset.view);
-    };
-});
-
-// Drag & Drop в папку
-content.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    content.style.background = 'rgba(102, 126, 234, 0.1)';
-    content.style.border = '2px dashed rgba(102, 126, 234, 0.4)';
-});
-
-content.addEventListener('dragleave', () => {
-    content.style.background = '';
-    content.style.border = '';
-});
-
-content.addEventListener('drop', (e) => {
-    e.preventDefault();
-    content.style.background = '';
-    content.style.border = '';
-    
-    const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
-    if (!id) return;
-    
-    const item = currentDesktopItems.find(i => i.id == id);
-    if (item && item.id !== folder.id) {
-        // Если файл был на рабочем столе с позицией - убираем позицию
-        delete item.x;
-        delete item.y;
-        item.parentId = folder.id;
-        saveToFirebase();
-        renderDesktop();
-        renderFolderContent();
-        const count = currentDesktopItems.filter(i => i.parentId === folder.id).length;
-        const span = win.querySelector('.folder-view-options span:last-child');
-        if (span) span.textContent = `${count} элементов`;
-    }
-    dragData = null;
-});
+} // ← ВОТ ЭТА ЗАКРЫВАЮЩАЯ СКОБКА БЫЛА ПОТЕРЯНА
 // ===== КОРЗИНА (красивая) =====
 function openTrash() {
     const existing = document.getElementById('trash-window');
