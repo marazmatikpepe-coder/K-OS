@@ -1198,3 +1198,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+}
