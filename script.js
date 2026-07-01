@@ -174,32 +174,77 @@ function createTaskbar() {
 }
 
 function renderTaskbar() {
-    // Создаём таскбар если его нет
-    if (!document.getElementById('taskbar')) {
-        createTaskbar();
-    }
-    const taskbar = document.getElementById('taskbar');
-    if (!taskbar) return;
-    const center = taskbar.querySelector('#taskbar-center');
-    if (!center) return;
+    // Удаляем старый таскбар если есть
+    const oldTaskbar = document.getElementById('taskbar');
+    if (oldTaskbar) oldTaskbar.remove();
     
-    center.innerHTML = '';
+    // Показываем таскбар только если есть открытые окна
+    const visibleWindows = openWindows.filter(w => w.style.display !== 'none');
+    if (visibleWindows.length === 0) return;
     
-    // Добавляем закрепленные приложения
-    pinnedApps.forEach(app => {
-        const item = createTaskbarItem(app);
-        center.appendChild(item);
-    });
+    // Создаём новый таскбар
+    const taskbar = document.createElement('div');
+    taskbar.id = 'taskbar';
+    taskbar.className = 'glass-panel';
+    taskbar.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: 42px;
+        padding: 4px 10px;
+        background: rgba(30, 30, 40, var(--glass-opacity, 0.7));
+        backdrop-filter: blur(var(--glass-blur, 20px));
+        -webkit-backdrop-filter: blur(var(--glass-blur, 20px));
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, var(--glass-border, 0.1));
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    `;
     
-    // Добавляем открытые окна
+    // Добавляем иконки открытых окон
     openWindows.forEach(win => {
-        const appData = getAppDataFromWindow(win);
-        // Проверяем, не закреплено ли уже
-        if (!pinnedApps.find(a => a.id === appData.id)) {
-            const item = createTaskbarItem(appData);
-            center.appendChild(item);
+        if (win.style.display === 'none') return;
+        
+        const title = win.querySelector('.window-title')?.textContent?.trim() || 'Окно';
+        const iconClass = win.querySelector('.window-title i')?.className || 'fas fa-file';
+        
+        const item = document.createElement('div');
+        item.className = 'taskbar-item';
+        item.title = title;
+        
+        const isFocused = focusedWindow === win;
+        if (isFocused) {
+            item.classList.add('focused');
+        } else {
+            item.classList.add('open');
         }
+        
+        item.innerHTML = `<div class="taskbar-item-icon"><i class="${iconClass}"></i></div>`;
+        
+        item.onclick = () => {
+            if (win.style.display === 'none') {
+                win.style.display = 'flex';
+            }
+            bringToFront(win);
+            focusWindow(win);
+        };
+        
+        item.oncontextmenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showTaskbarContextMenu(e.pageX, e.pageY, { window: win, title, icon: iconClass }, item);
+        };
+        
+        taskbar.appendChild(item);
     });
+    
+    // Вставляем таскбар ПЕРЕД кнопкой пуск (слева от неё)
+    const dockItems = document.querySelector('.dock-items');
+    const startButton = document.getElementById('start-button');
+    
+    if (dockItems && startButton) {
+        // Вставляем перед кнопкой пуск
+        startButton.parentNode.insertBefore(taskbar, startButton);
+    }
 }
 
 function getAppDataFromWindow(win) {
@@ -618,7 +663,7 @@ function createWindow(options) {
     
     const width = options.width || 500;
     const height = options.height || 'auto';
-    win.style.cssText = `width: ${width}px; max-width: 90%; ${height !== 'auto' ? `height: ${height}px; max-height: 80%;` : ''} top: 10%; left: 20%; z-index: ${windowZIndex++}; display: flex; flex-direction: column;`;
+    win.style.cssText = `width: ${width}px; max-width: 90%; ${height !== 'auto' ? `height: ${height}px; max-height: calc(100% - 120px);` : ''} top: 10%; left: 20%; z-index: ${windowZIndex++}; display: flex; flex-direction: column;`;
     
     win.innerHTML = `
         <div class="window-header" style="cursor: move; flex-shrink: 0; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06);">
@@ -695,7 +740,7 @@ function closeWindow(win) {
         if (focusedWindow === win) {
             focusedWindow = null;
         }
-        renderTaskbar();
+        renderTaskbar(); // Перерисовываем таскбар (скроется если нет окон)
     }, 200);
 }
 
