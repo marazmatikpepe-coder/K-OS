@@ -602,6 +602,7 @@ function createDesktopIcon(item) {
     else if (isImage) iconClass = 'fa-image';
     else if (item.name.endsWith('.txt')) iconClass = 'fa-file-alt';
     else if (item.name.endsWith('.doc')) iconClass = 'fa-file-word';
+    else if (item.name.endsWith('.exe') || item.name.endsWith('.ky')) iconClass = 'fa-cog';
     
     icon.innerHTML = `
         <div class="icon-img"><i class="fas ${iconClass}"></i></div>
