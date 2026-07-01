@@ -1758,6 +1758,13 @@ onAuthStateChanged(auth, async (user) => {
 document.addEventListener('dragstart', (e) => {
     const icon = e.target.closest('.desktop-icon');
     if (!icon) return;
+        // Поддержка перетаскивания иконки K-draw
+    if (icon.dataset.id === 'kdraw-app-icon' || icon.onclick.toString().includes('openKdraw')) {
+        dragData = { id: 'kdraw-app-icon', isKdraw: true };
+        e.dataTransfer.setData('text/plain', 'kdraw-app-icon');
+        icon.style.opacity = '0.5';
+        return;
+    }
     const id = icon.dataset.id;
     if (id === 'trash') {
         dragData = { id: 'trash', isTrash: true };
@@ -1792,7 +1799,19 @@ desktopIcons?.addEventListener('drop', (e) => {
     
     const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
     if (!id) return;
-    
+        // Поддержка перетаскивания иконки K-draw
+    if (id === 'kdraw-app-icon' || (dragData && dragData.isKdraw)) {
+        const kdrawIcon = document.querySelector('[data-id="kdraw-app-icon"]');
+        if (kdrawIcon) {
+            const rect = desktopIcons.getBoundingClientRect();
+            const x = e.clientX - rect.left - 42;
+            const y = e.clientY - rect.top - 42;
+            kdrawIcon.style.left = x + 'px';
+            kdrawIcon.style.top = y + 'px';
+        }
+        dragData = null;
+        return;
+    }
     if (id === 'trash' || (dragData && dragData.isTrash)) {
         const trashIcon = document.querySelector('.trash-icon');
         if (trashIcon) {
