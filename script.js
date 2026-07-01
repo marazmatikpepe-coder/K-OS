@@ -2457,6 +2457,247 @@ launchApp = function(appData) {
     }
     origLaunchApp(appData);
 };
+// ===== НАСТРОЙКИ =====
+window.openSettings = function() {
+    document.getElementById('settings-window').style.display = 'flex';
+    showSettingsSection('account');
+    
+    // Навигация
+    document.querySelectorAll('.settings-nav-item').forEach(item => {
+        item.onclick = () => {
+            document.querySelectorAll('.settings-nav-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+            showSettingsSection(item.dataset.section);
+        };
+    });
+};
+
+function showSettingsSection(section) {
+    const content = document.getElementById('settings-content');
+    const user = currentUser || {};
+    
+    switch(section) {
+        case 'account':
+            content.innerHTML = `
+                <h2 style="margin-bottom:20px;">Аккаунт</h2>
+                <div class="settings-card" style="display:flex;align-items:center;gap:20px;">
+                    <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;font-size:36px;flex-shrink:0;">${(user.displayName || 'K')[0].toUpperCase()}</div>
+                    <div style="flex:1;">
+                        <h3 style="margin:0;">${user.displayName || 'Пользователь'}</h3>
+                        <p style="opacity:0.5;margin:4px 0;">${user.email || ''}</p>
+                        <span style="background:rgba(102,126,234,0.2);padding:4px 10px;border-radius:6px;font-size:12px;color:#667eea;">Моя запись K</span>
+                    </div>
+                    <button class="settings-btn primary" onclick="editProfile()">Изменить</button>
+                </div>
+                <div class="settings-card">
+                    <h4>Быстрые действия</h4>
+                    <div style="display:flex;gap:10px;margin-top:12px;">
+                        <button class="settings-btn secondary" onclick="signOut(auth)">Выйти</button>
+                        <button class="settings-btn secondary" onclick="changePassword()">Сменить пароль</button>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'devices':
+            content.innerHTML = `
+                <h2 style="margin-bottom:20px;">Устройства в экосистеме K</h2>
+                <div class="device-card">
+                    <i class="fas fa-desktop" style="font-size:28px;opacity:0.6;"></i>
+                    <div style="flex:1;">
+                        <div style="font-weight:500;">Это устройство</div>
+                        <div style="font-size:12px;opacity:0.4;">Windows • Chrome</div>
+                    </div>
+                    <div class="status-dot green"></div>
+                    <button style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:18px;">⋯</button>
+                </div>
+                <div class="device-card">
+                    <i class="fas fa-mobile-alt" style="font-size:28px;opacity:0.4;"></i>
+                    <div style="flex:1;">
+                        <div style="font-weight:500;">iPhone 15 Pro</div>
+                        <div style="font-size:12px;opacity:0.4;">Последняя активность: 2ч назад</div>
+                    </div>
+                    <div class="status-dot orange"></div>
+                    <button style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:18px;">⋯</button>
+                </div>
+                <p style="opacity:0.3;font-size:12px;margin-top:16px;">Здесь показываются устройства, на которых выполнен вход в ваш аккаунт K.</p>
+            `;
+            break;
+            
+        case 'connected':
+            content.innerHTML = `
+                <h2 style="margin-bottom:20px;">Подключенные устройства</h2>
+                <div class="device-card">
+                    <i class="fas fa-mouse" style="font-size:22px;opacity:0.6;"></i>
+                    <div style="flex:1;font-weight:500;">Мышь</div>
+                    <span style="font-size:11px;opacity:0.3;">Bluetooth</span>
+                </div>
+                <div class="device-card">
+                    <i class="fas fa-keyboard" style="font-size:22px;opacity:0.6;"></i>
+                    <div style="flex:1;font-weight:500;">Клавиатура</div>
+                    <span style="font-size:11px;opacity:0.3;">USB</span>
+                </div>
+                <div class="device-card">
+                    <i class="fas fa-headphones" style="font-size:22px;opacity:0.6;"></i>
+                    <div style="flex:1;font-weight:500;">Наушники</div>
+                    <span style="font-size:11px;opacity:0.3;">Bluetooth</span>
+                </div>
+                <p style="opacity:0.3;font-size:12px;margin-top:16px;">Устройства, подключенные к компьютеру через Bluetooth или USB.</p>
+            `;
+            break;
+            
+        case 'personalize':
+            content.innerHTML = `
+                <h2 style="margin-bottom:20px;">Персонализация</h2>
+                <div class="settings-card">
+                    <h4>Обои рабочего стола</h4>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,90px));gap:10px;margin-top:12px;">
+                        ${['https://i.ibb.co/ccvjPDC4/image-Picsart-Ai-Image-Enhancer.png','https://i.ibb.co/ymHCrZzL/image.jpg','https://i.ibb.co/yBYpDyMH/image.png'].map(url => `
+                            <div onclick="systemConfig.wallpaper='${url}';applyConfig();saveToFirebase();" style="height:60px;background-image:url(${url});background-size:cover;border-radius:10px;cursor:pointer;border:2px solid ${systemConfig.wallpaper===url?'#667eea':'transparent'};transition:all 0.2s;"></div>
+                        `).join('')}
+                    </div>
+                    <button class="settings-btn secondary" style="margin-top:12px;" onclick="uploadCustomWallpaper()">📁 Загрузить свои обои</button>
+                </div>
+                <div class="settings-card">
+                    <h4>Тема</h4>
+                    <div style="display:flex;gap:10px;margin-top:12px;">
+                        <button class="settings-btn ${systemConfig.theme==='dark'?'primary':'secondary'}" onclick="systemConfig.theme='dark';applyConfig();saveToFirebase();">🌙 Тёмная</button>
+                        <button class="settings-btn ${systemConfig.theme==='light'?'primary':'secondary'}" onclick="systemConfig.theme='light';applyConfig();saveToFirebase();">☀️ Светлая</button>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h4>Жидкое стекло</h4>
+                    <input type="range" min="10" max="90" value="${(systemConfig.glassOpacity||0.6)*100}" oninput="systemConfig.glassOpacity=this.value/100;document.documentElement.style.setProperty('--glass-opacity',this.value/100);" style="width:100%;margin-top:8px;">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;opacity:0.4;"><span>Прозрачный</span><span>Непрозрачный</span></div>
+                </div>
+            `;
+            break;
+            
+        case 'apps':
+            const allApps = [
+                { name: 'K-draw', icon: 'fa-paint-brush', action: 'openKdraw()' },
+                { name: 'Блокнот', icon: 'fa-edit', action: 'openNotepad({name:"заметка.txt",content:"",id:Date.now()})' },
+                { name: 'Конструктор', icon: 'fa-code', action: 'openAppBuilder2()' },
+                { name: 'Настройки', icon: 'fa-cog', action: 'openSettings()' }
+            ];
+            content.innerHTML = `
+                <h2 style="margin-bottom:20px;">Приложения</h2>
+                ${allApps.map(app => `
+                    <div class="device-card" style="cursor:pointer;" onclick="${app.action}">
+                        <i class="fas ${app.icon}" style="font-size:22px;opacity:0.7;"></i>
+                        <div style="flex:1;font-weight:500;">${app.name}</div>
+                        <i class="fas fa-chevron-right" style="opacity:0.3;"></i>
+                    </div>
+                `).join('')}
+                <p style="opacity:0.3;font-size:12px;margin-top:16px;">${allApps.length} приложений установлено</p>
+            `;
+            break;
+            
+        case 'accounts':
+            content.innerHTML = `
+                <h2 style="margin-bottom:20px;">Учетные записи</h2>
+                <div class="device-card">
+                    <i class="fas fa-envelope" style="font-size:22px;opacity:0.7;"></i>
+                    <div style="flex:1;">
+                        <div style="font-weight:500;">${user.email || 'email@example.com'}</div>
+                        <div style="font-size:11px;opacity:0.4;">Аккаунт K</div>
+                    </div>
+                    <span style="font-size:11px;opacity:0.4;">Активен</span>
+                </div>
+                <button class="settings-btn secondary" style="margin-top:12px;" onclick="signOut(auth)">Выйти из аккаунта</button>
+            `;
+            break;
+            
+        case 'time':
+            content.innerHTML = `
+                <h2 style="margin-bottom:20px;">Время и конфиденциальность</h2>
+                <div class="settings-card">
+                    <h4>Часовой пояс</h4>
+                    <select class="settings-input" onchange="changeTimezone(this.value)">
+                        <option>UTC+3 (Москва)</option>
+                        <option>UTC+0 (Лондон)</option>
+                        <option>UTC-5 (Нью-Йорк)</option>
+                        <option>UTC+9 (Токио)</option>
+                    </select>
+                </div>
+                <div class="settings-card">
+                    <h4>Конфиденциальность</h4>
+                    <p style="opacity:0.5;font-size:13px;">Ваши данные хранятся в зашифрованном виде в Firebase. Мы не передаём их третьим лицам.</p>
+                </div>
+            `;
+            break;
+            
+        case 'updates':
+            content.innerHTML = `
+                <h2 style="margin-bottom:20px;">Обновление</h2>
+                <div class="settings-card" style="text-align:center;padding:40px;">
+                    <i class="fas fa-check-circle" style="font-size:48px;color:#44ff88;margin-bottom:16px;"></i>
+                    <h3>K-OS обновлена</h3>
+                    <p style="opacity:0.5;">Версия 1.0.0 • Последняя проверка: только что</p>
+                    <p style="opacity:0.3;font-size:12px;">Обновлений пока нет</p>
+                </div>
+            `;
+            break;
+    }
+}
+
+function editProfile() {
+    const user = currentUser;
+    if (!user) return;
+    Swal.fire({
+        title: 'Изменить профиль',
+        html: `
+            <input id="swal-name" class="swal2-input" placeholder="Имя" value="${user.displayName || ''}">
+            <input id="swal-email" class="swal2-input" placeholder="Email" value="${user.email || ''}">
+        `,
+        background: '#1a1a2e',
+        color: '#fff',
+        showCancelButton: true,
+        confirmButtonText: 'Сохранить',
+        preConfirm: () => {
+            const name = document.getElementById('swal-name').value;
+            const email = document.getElementById('swal-email').value;
+            if (name) updateProfile(user, { displayName: name });
+            if (email) user.updateEmail(email).catch(() => {});
+            showSettingsSection('account');
+        }
+    });
+}
+
+function changePassword() {
+    Swal.fire({
+        title: 'Сменить пароль',
+        html: `<input id="swal-pass" class="swal2-input" type="password" placeholder="Новый пароль">`,
+        background: '#1a1a2e',
+        color: '#fff',
+        showCancelButton: true,
+        confirmButtonText: 'Сменить',
+        preConfirm: () => {
+            const pass = document.getElementById('swal-pass').value;
+            if (pass && currentUser) currentUser.updatePassword(pass).then(() => {
+                Swal.fire({ title: 'Пароль изменён!', icon: 'success', background: '#1a1a2e', color: '#fff' });
+            }).catch(e => Swal.fire({ title: 'Ошибка', text: e.message, icon: 'error', background: '#1a1a2e', color: '#fff' }));
+        }
+    });
+}
+
+function uploadCustomWallpaper() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            systemConfig.wallpaper = ev.target.result;
+            applyConfig();
+            saveToFirebase();
+            showSettingsSection('personalize');
+        };
+        reader.readAsDataURL(file);
+    };
+    input.click();
+}
 console.log('✅ K-OS полностью обновлён!');
 console.log('✅ Добавлен таскбар с управлением окнами');
 console.log('✅ Закрепление приложений на панели');
