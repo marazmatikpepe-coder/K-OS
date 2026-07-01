@@ -505,14 +505,14 @@ body {
 
 /* ========== DOCK ========== */
 .dock {
-    position: absolute;
+    position: fixed;
     bottom: 20px;
     left: 0;
     right: 0;
     display: flex;
     justify-content: center;
     pointer-events: none;
-    z-index: 100;
+    z-index: 9999;
 }
 
 .dock-blur {
@@ -539,6 +539,8 @@ body {
     border-radius: 28px;
     border: 1px solid rgba(255, 255, 255, var(--glass-border, 0.1));
     pointer-events: auto;
+    position: relative;
+    z-index: 9999;
 }
 
 .dock-item {
