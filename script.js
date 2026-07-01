@@ -110,6 +110,18 @@ function showScreen(screen) {
 async function saveToFirebase() {
     if (!currentUser) return;
     try {
+        // Убираем дубликаты из pinnedApps перед сохранением
+        const uniquePinned = [];
+        const seen = new Set();
+        pinnedApps.forEach(app => {
+            const key = app.title + (app.id || '');
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniquePinned.push(app);
+            }
+        });
+        pinnedApps = uniquePinned;
+        
         const userRef = doc(db, 'users', currentUser.uid);
         await setDoc(userRef, {
             desktopItems: currentDesktopItems,
@@ -121,7 +133,6 @@ async function saveToFirebase() {
         console.error('Save error:', e);
     }
 }
-
 async function loadFromFirebase() {
     if (!currentUser) return;
     try {
@@ -183,67 +194,26 @@ function renderTaskbar() {
     const oldTaskbar = document.getElementById('taskbar');
     if (oldTaskbar) oldTaskbar.remove();
     
-    // Показываем таскбар только если есть открытые окна (включая свёрнутые)
-const openOrMinimized = openWindows.filter(w => {
-    // Окно считается активным если оно в DOM и либо видимо, либо свёрнуто
-    return document.body.contains(w);
-});
-// Показываем таскбар если есть открытые окна ИЛИ закреплённые приложения
-if (openOrMinimized.length === 0 && pinnedApps.length === 0) return;
+    // Собираем уникальные закреплённые приложения (без дубликатов)
+    const uniquePinned = [];
+    const seenIds = new Set();
+    pinnedApps.forEach(app => {
+        const key = app.title + (app.id || '');
+        if (!seenIds.has(key)) {
+            seenIds.add(key);
+            uniquePinned.push(app);
+        }
+    });
+    pinnedApps = uniquePinned;
+    
+    // Открытые окна (включая свёрнутые)
+    const activeWindows = openWindows.filter(w => document.body.contains(w));
+    
+    // Показываем таскбар только если есть окна или закреплённые
+    if (activeWindows.length === 0 && pinnedApps.length === 0) return;
     
     // Создаём новый таскбар
     const taskbar = document.createElement('div');
-    // Сначала добавляем закреплённые приложения
-pinnedApps.forEach(app => {
-    const item = document.createElement('div');
-    item.className = 'taskbar-item';
-    item.title = app.title;
-    item.dataset.pinned = 'true';
-    
-    // Проверяем, открыто ли это приложение
-    const openWindow = openWindows.find(w => {
-        const wTitle = w.querySelector('.window-title')?.textContent?.trim();
-        return wTitle === app.title;
-    });
-    
-    if (openWindow && openWindow.style.display !== 'none') {
-        if (focusedWindow === openWindow) {
-            item.classList.add('focused');
-        } else {
-            item.classList.add('open');
-        }
-    }
-    
-    item.innerHTML = `<div class="taskbar-item-icon"><i class="${app.icon || 'fas fa-file'}"></i></div>`;
-    
-    item.onclick = () => {
-        if (openWindow && openWindows.includes(openWindow)) {
-            if (openWindow.style.display === 'none') {
-                openWindow.style.display = 'flex';
-                focusWindow(openWindow);
-            } else if (focusedWindow === openWindow) {
-                minimizeWindow(openWindow);
-            } else {
-                bringToFront(openWindow);
-                focusWindow(openWindow);
-            }
-        } else {
-            // Запустить приложение
-            launchApp(app);
-        }
-    };
-    
-    item.oncontextmenu = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        showTaskbarContextMenu(e.pageX, e.pageY, { 
-            ...app, 
-            window: openWindow 
-        }, item);
-    };
-    
-    taskbar.appendChild(item);
-});
     taskbar.id = 'taskbar';
     taskbar.className = 'glass-panel';
     taskbar.style.cssText = `
@@ -260,57 +230,114 @@ pinnedApps.forEach(app => {
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     `;
     
-    // Добавляем иконки открытых окон
-    openWindows.forEach(win => {
-    if (!document.body.contains(win)) return;
-        
+    // Собираем все элементы для отображения (без дубликатов)
+    const allItems = [];
+    const addedTitles = new Set();
+    
+    // Сначала закреплённые
+    pinnedApps.forEach(app => {
+        if (!addedTitles.has(app.title)) {
+            addedTitles.add(app.title);
+            
+            // Ищем открытое окно для этого приложения
+            const openWindow = activeWindows.find(w => {
+                const wTitle = w.querySelector('.window-title')?.textContent?.trim();
+                return wTitle === app.title;
+            });
+            
+            allItems.push({
+                title: app.title,
+                icon: app.icon || 'fa-file',
+                isPinned: true,
+                window: openWindow || null,
+                appData: app
+            });
+        }
+    });
+    
+    // Затем открытые окна, которых нет в закреплённых
+    activeWindows.forEach(win => {
         const title = win.querySelector('.window-title')?.textContent?.trim() || 'Окно';
-        const iconClass = win.querySelector('.window-title i')?.className || 'fas fa-file';
-        
+        if (!addedTitles.has(title)) {
+            addedTitles.add(title);
+            const iconClass = win.querySelector('.window-title i')?.className || 'fas fa-file';
+            
+            allItems.push({
+                title: title,
+                icon: iconClass,
+                isPinned: false,
+                window: win,
+                appData: null
+            });
+        }
+    });
+    
+    // Отрисовываем все элементы
+    allItems.forEach(itemData => {
         const item = document.createElement('div');
         item.className = 'taskbar-item';
-        item.title = title;
+        item.title = itemData.title;
         
-        const isFocused = focusedWindow === win;
-const isMinimized = win.style.display === 'none';
-
-if (isFocused && !isMinimized) {
-    item.classList.add('focused');
-} else if (!isMinimized) {
-    item.classList.add('open');
-}
+        // Определяем состояние
+        const win = itemData.window;
+        const isMinimized = win && win.style.display === 'none';
+        const isFocused = win && focusedWindow === win && !isMinimized;
+        const isOpen = win && !isMinimized;
         
-        item.innerHTML = `<div class="taskbar-item-icon"><i class="${iconClass}"></i></div>`;
+        if (isFocused) {
+            item.classList.add('focused');
+        } else if (isOpen) {
+            item.classList.add('open');
+        }
         
+        item.innerHTML = `<div class="taskbar-item-icon"><i class="${itemData.icon}"></i></div>`;
+        
+        // Клик по иконке
         item.onclick = () => {
-    if (win.style.display === 'none') {
-        win.style.display = 'flex';
-        focusWindow(win);
-    } else if (focusedWindow === win) {
-        // Если окно в фокусе - сворачиваем
-        minimizeWindow(win);
-    } else {
-        // Если окно не в фокусе - показываем и фокусируем
-        bringToFront(win);
-        focusWindow(win);
-    }
-};
+            if (win && openWindows.includes(win)) {
+                // Окно уже открыто
+                if (win.style.display === 'none') {
+                    // Развернуть свёрнутое
+                    win.style.display = 'flex';
+                    focusWindow(win);
+                } else if (focusedWindow === win) {
+                    // Свернуть окно в фокусе
+                    minimizeWindow(win);
+                } else {
+                    // Показать и сфокусировать
+                    bringToFront(win);
+                    focusWindow(win);
+                }
+            } else if (itemData.isPinned && itemData.appData) {
+                // Запустить закреплённое приложение
+                launchApp(itemData.appData);
+            }
+        };
         
+        // ПКМ меню
         item.oncontextmenu = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            showTaskbarContextMenu(e.pageX, e.pageY, { window: win, title, icon: iconClass }, item);
+            
+            const menuData = {
+                title: itemData.title,
+                icon: itemData.icon,
+                id: itemData.appData?.id || itemData.title,
+                type: itemData.appData?.type || 'window',
+                window: win
+            };
+            
+            showTaskbarContextMenu(e.pageX, e.pageY, menuData, item);
         };
         
         taskbar.appendChild(item);
     });
     
-    // Вставляем таскбар ПЕРЕД кнопкой пуск (слева от неё)
+    // Вставляем таскбар слева от кнопки пуск
     const dockItems = document.querySelector('.dock-items');
     const startButton = document.getElementById('start-button');
     
     if (dockItems && startButton) {
-        // Вставляем перед кнопкой пуск
         startButton.parentNode.insertBefore(taskbar, startButton);
     }
 }
@@ -437,20 +464,64 @@ function showTaskbarContextMenu(x, y, appData, item) {
 }
 
 function launchApp(appData) {
-    // Находим или создаем окно для приложения
-    if (appData.type === 'file' || appData.fileId) {
-        const item = currentDesktopItems.find(i => i.id == appData.id);
-        if (item) {
+    // Ищем файл/папку на рабочем столе
+    const item = currentDesktopItems.find(i => 
+        i.name === appData.title || 
+        i.id == appData.id || 
+        i.id == appData.fileId
+    );
+    
+    if (item) {
+        if (item.type === 'folder') {
+            openFolderWindow(item);
+        } else {
             openFile(item);
         }
-    } else if (appData.type === 'folder' || appData.folderId) {
-        const item = currentDesktopItems.find(i => i.id == appData.id);
-        if (item) {
-            openFolderWindow(item);
-        }
+        return;
+    }
+    
+    // Если не нашли — проверяем trashItems
+    const trashedItem = trashItems.find(i => 
+        i.name === appData.title || 
+        i.id == appData.id
+    );
+    
+    if (trashedItem) {
+        Swal.fire({
+            title: 'Файл в корзине',
+            text: 'Восстановите файл из корзины чтобы открыть',
+            icon: 'info',
+            background: '#1a1a2e',
+            color: '#fff'
+        });
+        return;
+    }
+    
+    // Если это папка или файл, который не найден — создаём новый
+    if (appData.type === 'folder') {
+        currentDesktopItems.push({ 
+            id: Date.now(), 
+            name: appData.title, 
+            type: 'folder' 
+        });
+        renderDesktop();
+        saveToFirebase();
+        // Открываем созданную папку
+        const newFolder = currentDesktopItems.find(i => i.name === appData.title && i.type === 'folder');
+        if (newFolder) openFolderWindow(newFolder);
+    } else if (appData.type === 'file' || appData.type === 'notepad') {
+        currentDesktopItems.push({ 
+            id: Date.now(), 
+            name: appData.title || 'новый.txt', 
+            type: 'file', 
+            content: appData.content || '' 
+        });
+        renderDesktop();
+        saveToFirebase();
+        const newFile = currentDesktopItems.find(i => i.name === (appData.title || 'новый.txt') && i.type === 'file');
+        if (newFile) openFile(newFile);
     }
 }
-
 function focusWindow(win) {
     if (focusedWindow && focusedWindow !== win) {
         focusedWindow.classList.remove('focused');
