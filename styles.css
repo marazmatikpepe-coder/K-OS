@@ -1829,3 +1829,102 @@ body.light-theme .start-menu {
 body.light-theme .start-menu input {
     color: #1a1a2e;
 }
+/* ========== ТАСКБАР ========== */
+#taskbar {
+    position: absolute;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 48px;
+    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 150;
+    background: rgba(30, 30, 40, 0.7);
+    backdrop-filter: blur(20px);
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+#taskbar-center {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    justify-content: center;
+}
+
+.taskbar-item {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.08);
+    position: relative;
+}
+
+.taskbar-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.05);
+}
+
+.taskbar-item-icon {
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Точка под иконкой - окно открыто */
+.taskbar-item.open::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4ecdc4;
+    box-shadow: 0 0 8px rgba(78, 205, 196, 0.5);
+}
+
+/* Окно в фокусе - кружок становится голубым */
+.taskbar-item.focused {
+    background: rgba(78, 205, 196, 0.3);
+}
+
+.taskbar-item.focused .taskbar-item-icon {
+    color: #4ecdc4;
+}
+
+.taskbar-item.focused::after {
+    display: none;
+}
+
+/* Контекстное меню таскбара */
+#taskbar-context-menu {
+    min-width: 220px;
+    z-index: 10000;
+}
+
+#taskbar-context-menu .context-item-header {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+#taskbar-context-menu .context-item-header i {
+    font-size: 18px;
+    opacity: 0.8;
+}
