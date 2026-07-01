@@ -2187,6 +2187,9 @@ function showToast(message) {
         background: '#1a1a2e',
         color: '#fff',
         toast: true,
+        position: 'bottom-end'
+    });
+}
 console.log('✅ K-OS полностью обновлён!');
 console.log('✅ Добавлен таскбар с управлением окнами');
 console.log('✅ Закрепление приложений на панели');
