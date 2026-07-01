@@ -2103,21 +2103,16 @@ kdCanvas.addEventListener('mousedown', (e) => {
     kdCanvas.addEventListener('mouseup', () => { kdIsDrawing = false; });
     kdCanvas.addEventListener('mouseleave', () => { kdIsDrawing = false; });
     
-    // HEX copy
+      // HEX copy
     const hexInput = document.getElementById('kd-hex-input');
-if (hexInput) {
-    hexInput.addEventListener('click', function() {
-        this.select();
-        navigator.clipboard.writeText(this.value).then(() => {
-            showToast('Скопировано!');
+    if (hexInput) {
+        hexInput.addEventListener('click', function() {
+            this.select();
+            navigator.clipboard.writeText(this.value).then(() => {
+                showToast('Скопировано!');
+            });
         });
-    });
-}
-        this.select();
-        navigator.clipboard.writeText(this.value).then(() => {
-            showToast('Скопировано!');
-        });
-    });
+    }
 }
 
 function floodFill(x, y, fillColor) {
