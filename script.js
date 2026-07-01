@@ -1444,8 +1444,8 @@ desktop?.addEventListener('contextmenu', (e) => {
                             currentDesktopItems.push({ id: Date.now() + Math.random(), name: name, type: 'folder' });
                             renderDesktop();
                             saveToFirebase();
-                        }
-                                        } else if (action === 'create-file-txt') {
+                                             }
+                    } else if (action === 'create-file-txt') {
                         currentDesktopItems.push({ id: Date.now() + Math.random(), name: 'новый.txt', type: 'file', content: '' });
                         renderDesktop();
                         saveToFirebase();
