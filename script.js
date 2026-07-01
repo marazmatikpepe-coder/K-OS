@@ -1884,14 +1884,14 @@ function addTaskbarContextMenu() {
 document.addEventListener('DOMContentLoaded', () => {
     addTaskbarContextMenu();
 });
-// ===== K-DRAW (упрощённый, как обычное окно) =====
+// ===== K-DRAW (полнофункциональный) =====
 let kdCanvas, kdCtx, kdIsDrawing = false;
-let kdBrushSize = 5, kdCurrentColor = '#000000';
+let kdBrushSize = 5, kdCurrentColor = '#000000', kdCurrentBrush = 'round';
 let kdStartX, kdStartY;
 let kdHistory = [], kdHistoryIndex = -1;
+let kdCurrentTool = 'brush';
 
 window.openKdraw = function() {
-    // Проверяем, не открыто ли уже
     const existing = document.querySelector('[data-file-id="kdraw-main"]');
     if (existing) {
         focusWindow(existing);
@@ -1902,17 +1902,26 @@ window.openKdraw = function() {
         title: 'K-draw',
         icon: 'fa-paint-brush',
         fileId: 'kdraw-main',
-        width: 1100,
-        height: 700,
+        width: 1200,
+        height: 750,
         resizable: true,
         body: `
             <div style="display:flex;height:100%;gap:0;">
-                <!-- ЛЕВАЯ ПАНЕЛЬ ИНСТРУМЕНТОВ -->
-                <div style="width:48px;display:flex;flex-direction:column;align-items:center;padding:8px 4px;gap:6px;border-right:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
+                <!-- ЛЕВАЯ ПАНЕЛЬ -->
+                <div style="width:52px;display:flex;flex-direction:column;align-items:center;padding:10px 4px;gap:8px;border-right:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
                     <button class="kd-tool-btn active" data-tool="brush" title="Кисть (B)"><i class="fas fa-paint-brush"></i></button>
                     <button class="kd-tool-btn" data-tool="eraser" title="Ластик (E)"><i class="fas fa-eraser"></i></button>
                     <button class="kd-tool-btn" data-tool="fill" title="Заливка (G)"><i class="fas fa-fill-drip"></i></button>
                     <button class="kd-tool-btn" data-tool="picker" title="Пипетка (I)"><i class="fas fa-eye-dropper"></i></button>
+                    <div style="position:relative;">
+                        <button class="kd-tool-btn" data-tool="shapes" id="kd-shapes-btn" title="Фигуры (S)"><i class="fas fa-shapes"></i></button>
+                        <div id="kd-shapes-submenu" style="display:none;position:absolute;left:56px;top:0;background:rgba(20,20,35,0.95);backdrop-filter:blur(20px);border-radius:10px;border:1px solid rgba(255,255,255,0.08);padding:6px;z-index:10;white-space:nowrap;">
+                            <button class="kd-shape-btn" data-shape="rect" title="Прямоугольник">▬</button>
+                            <button class="kd-shape-btn" data-shape="circle" title="Круг">⬤</button>
+                            <button class="kd-shape-btn" data-shape="line" title="Линия">╱</button>
+                            <button class="kd-shape-btn" data-shape="triangle" title="Треугольник">▲</button>
+                        </div>
+                    </div>
                     <div style="flex:1;"></div>
                     <button class="kd-tool-btn" id="kd-undo-btn" title="Отменить (Ctrl+Z)"><i class="fas fa-undo"></i></button>
                     <button class="kd-tool-btn" id="kd-redo-btn" title="Вернуть (Ctrl+Shift+Z)"><i class="fas fa-redo"></i></button>
@@ -1920,27 +1929,66 @@ window.openKdraw = function() {
                 
                 <!-- ХОЛСТ -->
                 <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
-                    <div style="padding:6px 12px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:12px;font-size:11px;opacity:0.5;flex-shrink:0;">
+                    <div style="padding:6px 12px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:10px;font-size:11px;opacity:0.5;flex-shrink:0;flex-wrap:wrap;">
                         <span>Холст</span>
                         <span>|</span>
                         <span>Размер:</span>
-                        <input type="range" id="kd-brush-size" min="1" max="50" value="5" style="width:80px;">
+                        <input type="range" id="kd-brush-size" min="1" max="50" value="5" style="width:70px;">
                         <span id="kd-size-value">5px</span>
+                        <span>|</span>
+                        <span>Кисть:</span>
+                        <select id="kd-brush-type" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:2px 6px;color:white;font-size:10px;">
+                            <option value="round">● Круглая</option>
+                            <option value="square">■ Квадратная</option>
+                            <option value="spray">💨 Аэрограф</option>
+                            <option value="marker">🖊 Маркер</option>
+                            <option value="pen">✒ Перо</option>
+                        </select>
                         <span style="margin-left:auto;">Масштаб:</span>
                         <span id="kd-zoom-level">100%</span>
                     </div>
                     <div style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);" id="kd-canvas-wrapper">
-                        <canvas id="kd-canvas" width="800" height="600" style="background:white;box-shadow:0 4px 20px rgba(0,0,0,0.3);cursor:crosshair;"></canvas>
+                        <div id="kd-new-canvas-overlay" style="position:absolute;display:flex;align-items:center;justify-content:center;z-index:5;">
+                            <div style="background:rgba(20,20,35,0.9);backdrop-filter:blur(20px);border-radius:16px;border:1px solid rgba(255,255,255,0.1);padding:24px;text-align:center;">
+                                <h3 style="margin:0 0 16px;font-size:18px;">Новый холст</h3>
+                                <div style="display:flex;gap:8px;margin-bottom:12px;justify-content:center;">
+                                    <input type="number" id="kd-cw" value="800" style="width:70px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px;color:white;text-align:center;font-size:14px;outline:none;">
+                                    <span style="color:rgba(255,255,255,0.3);line-height:40px;">×</span>
+                                    <input type="number" id="kd-ch" value="600" style="width:70px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px;color:white;text-align:center;font-size:14px;outline:none;">
+                                </div>
+                                <button id="kd-create-btn" style="width:44px;height:44px;border-radius:50%;border:none;background:linear-gradient(135deg,#667eea,#764ba2);color:white;font-size:22px;cursor:pointer;">+</button>
+                            </div>
+                        </div>
+                        <canvas id="kd-canvas" width="800" height="600" style="background:white;box-shadow:0 4px 20px rgba(0,0,0,0.3);cursor:crosshair;display:none;"></canvas>
                     </div>
                 </div>
                 
                 <!-- ПРАВАЯ ПАНЕЛЬ -->
-                <div style="width:56px;display:flex;flex-direction:column;align-items:center;padding:8px 4px;gap:6px;border-left:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
-                    <div id="kd-current-color" style="width:32px;height:32px;border-radius:8px;background:#000;border:2px solid rgba(255,255,255,0.3);cursor:pointer;flex-shrink:0;" title="Текущий цвет"></div>
-                    <input type="text" id="kd-hex-input" value="#000000" style="width:48px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:4px;color:white;font-size:10px;text-align:center;font-family:monospace;outline:none;">
-                    <div style="font-size:9px;opacity:0.3;margin-top:4px;">ЦВЕТ</div>
-                    <canvas id="kd-color-wheel" width="48" height="48" style="width:48px;height:48px;border-radius:50%;cursor:crosshair;"></canvas>
-                    <button class="kd-tool-btn" id="kd-save-btn" title="Сохранить" style="margin-top:auto;"><i class="fas fa-save"></i></button>
+                <div style="width:200px;display:flex;flex-direction:column;padding:12px;gap:12px;border-left:1px solid rgba(255,255,255,0.06);flex-shrink:0;overflow-y:auto;">
+                    <!-- Цвет -->
+                    <div>
+                        <div style="font-size:10px;opacity:0.4;margin-bottom:6px;">ЦВЕТ</div>
+                        <canvas id="kd-color-wheel" width="176" height="176" style="width:100%;border-radius:50%;cursor:crosshair;display:block;"></canvas>
+                        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+                            <div id="kd-current-color" style="width:30px;height:30px;border-radius:8px;background:#000;border:2px solid rgba(255,255,255,0.3);cursor:pointer;flex-shrink:0;"></div>
+                            <input type="text" id="kd-hex-input" value="#000000" style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px;color:white;font-size:11px;font-family:monospace;outline:none;">
+                        </div>
+                    </div>
+                    
+                    <!-- Слои -->
+                    <div>
+                        <div style="font-size:10px;opacity:0.4;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+                            <span>СЛОИ</span>
+                            <button id="kd-add-layer" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;">+</button>
+                        </div>
+                        <div id="kd-layers-list" style="display:flex;flex-direction:column;gap:4px;max-height:120px;overflow-y:auto;"></div>
+                    </div>
+                    
+                    <!-- Сохранить -->
+                    <div style="margin-top:auto;display:flex;flex-direction:column;gap:6px;">
+                        <button id="kd-save-btn" style="width:100%;padding:8px;background:linear-gradient(135deg,#667eea,#764ba2);border:none;border-radius:10px;color:white;cursor:pointer;font-size:12px;">💾 Сохранить на рабочий стол</button>
+                        <button id="kd-export-btn" style="width:100%;padding:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:rgba(255,255,255,0.7);cursor:pointer;font-size:12px;">📥 Экспорт PNG</button>
+                    </div>
                 </div>
             </div>
         `,
@@ -1952,14 +2000,24 @@ window.openKdraw = function() {
     renderTaskbar();
     focusWindow(win);
     
-    // Инициализация после вставки в DOM
     setTimeout(() => {
         kdCanvas = win.querySelector('#kd-canvas');
         kdCtx = kdCanvas.getContext('2d');
-        kdCtx.fillStyle = '#ffffff';
-        kdCtx.fillRect(0, 0, kdCanvas.width, kdCanvas.height);
-        kdHistory = [];
-        saveKdHistory();
+        
+        // Создание холста
+        win.querySelector('#kd-create-btn').onclick = () => {
+            const w = parseInt(win.querySelector('#kd-cw').value) || 800;
+            const h = parseInt(win.querySelector('#kd-ch').value) || 600;
+            kdCanvas.width = w;
+            kdCanvas.height = h;
+            kdCtx.fillStyle = '#ffffff';
+            kdCtx.fillRect(0, 0, w, h);
+            kdCanvas.style.display = 'block';
+            win.querySelector('#kd-new-canvas-overlay').style.display = 'none';
+            kdHistory = [];
+            saveKdHistory();
+            updateKdLayers(win);
+        };
         
         initKdColorWheel(win);
         initKdTools(win);
@@ -1985,27 +2043,88 @@ function loadKdHistory(index) {
 function initKdColorWheel(win) {
     const wheel = win.querySelector('#kd-color-wheel');
     const wctx = wheel.getContext('2d');
-    const cx = 24, cy = 24, r = 24;
+    const cx = 88, cy = 88, r = 85;
     
-    for (let a = 0; a < 360; a += 0.5) {
-        for (let d = 5; d < r; d++) {
+    function drawWheel(selX, selY) {
+        wctx.clearRect(0, 0, 176, 176);
+        for (let a = 0; a < 360; a += 0.3) {
+            for (let d = 8; d < r; d++) {
+                wctx.beginPath();
+                wctx.arc(cx, cy, d, (a - 1) * Math.PI / 180, (a + 1) * Math.PI / 180);
+                wctx.strokeStyle = `hsl(${a}, ${(d/r) * 100}%, 50%)`;
+                wctx.lineWidth = 1.3;
+                wctx.stroke();
+            }
+        }
+        if (selX !== undefined) {
             wctx.beginPath();
-            wctx.arc(cx, cy, d, (a - 1) * Math.PI / 180, (a + 1) * Math.PI / 180);
-            wctx.strokeStyle = `hsl(${a}, ${(d/r) * 100}%, 50%)`;
-            wctx.lineWidth = 1.2;
+            wctx.arc(selX, selY, 7, 0, Math.PI * 2);
+            wctx.strokeStyle = '#fff';
+            wctx.lineWidth = 2.5;
+            wctx.stroke();
+            wctx.beginPath();
+            wctx.arc(selX, selY, 5, 0, Math.PI * 2);
+            wctx.strokeStyle = '#000';
+            wctx.lineWidth = 1.5;
             wctx.stroke();
         }
     }
     
-    wheel.onclick = (e) => {
+    drawWheel();
+    
+    let selPt = null;
+    
+    wheel.onmousedown = (e) => {
         const rect = wheel.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        const data = wctx.getImageData(x, y, 1, 1).data;
-        kdCurrentColor = '#' + [data[0], data[1], data[2]].map(v => v.toString(16).padStart(2, '0')).join('');
-        win.querySelector('#kd-current-color').style.background = kdCurrentColor;
-        win.querySelector('#kd-hex-input').value = kdCurrentColor;
+        const dx = x - cx, dy = y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < r && dist > 8) {
+            const data = wctx.getImageData(x, y, 1, 1).data;
+            kdCurrentColor = '#' + [data[0], data[1], data[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+            win.querySelector('#kd-current-color').style.background = kdCurrentColor;
+            win.querySelector('#kd-hex-input').value = kdCurrentColor;
+            selPt = [x, y];
+            drawWheel(x, y);
+        }
     };
+    
+    wheel.onmousemove = (e) => {
+        if (!selPt) return;
+        const rect = wheel.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const dx = x - cx, dy = y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < r && dist > 8) {
+            const data = wctx.getImageData(x, y, 1, 1).data;
+            kdCurrentColor = '#' + [data[0], data[1], data[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+            win.querySelector('#kd-current-color').style.background = kdCurrentColor;
+            win.querySelector('#kd-hex-input').value = kdCurrentColor;
+            selPt = [x, y];
+            drawWheel(x, y);
+        }
+    };
+    
+    wheel.onmouseup = () => { selPt = null; };
+    wheel.onmouseleave = () => { selPt = null; };
+}
+
+let kdLayers = [{ name: 'Слой 1', data: null, visible: true }];
+let kdActiveLayer = 0;
+
+function updateKdLayers(win) {
+    const list = win.querySelector('#kd-layers-list');
+    list.innerHTML = '';
+    kdLayers.forEach((layer, i) => {
+        const div = document.createElement('div');
+        div.style.cssText = `display:flex;align-items:center;gap:6px;padding:5px 8px;background:${i === kdActiveLayer ? 'rgba(102,126,234,0.3)' : 'rgba(255,255,255,0.03)'};border-radius:6px;cursor:pointer;font-size:11px;`;
+        div.innerHTML = `<span style="flex:1;">${layer.name}</span><i class="fas fa-eye" style="opacity:${layer.visible ? '0.5' : '0.1'};cursor:pointer;font-size:10px;"></i>`;
+        div.onclick = () => { kdActiveLayer = i; updateKdLayers(win); };
+        div.querySelector('i').onclick = (e) => { e.stopPropagation(); layer.visible = !layer.visible; updateKdLayers(win); };
+        list.appendChild(div);
+    });
 }
 
 function initKdTools(win) {
@@ -2014,8 +2133,28 @@ function initKdTools(win) {
         btn.onclick = () => {
             win.querySelectorAll('.kd-tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            kdCurrentTool = btn.dataset.tool;
+            if (kdCurrentTool === 'shapes') {
+                win.querySelector('#kd-shapes-submenu').style.display = 'block';
+            } else {
+                win.querySelector('#kd-shapes-submenu').style.display = 'none';
+            }
         };
     });
+    
+    // Фигуры
+    win.querySelectorAll('.kd-shape-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            kdCurrentTool = 'shape-' + btn.dataset.shape;
+            win.querySelector('#kd-shapes-submenu').style.display = 'none';
+        };
+    });
+    
+    // Тип кисти
+    win.querySelector('#kd-brush-type').onchange = function() {
+        kdCurrentBrush = this.value;
+    };
     
     // Размер кисти
     win.querySelector('#kd-brush-size').oninput = function() {
@@ -2034,15 +2173,21 @@ function initKdTools(win) {
     // Сохранить
     win.querySelector('#kd-save-btn').onclick = () => {
         const dataUrl = kdCanvas.toDataURL('image/png');
-        currentDesktopItems.push({
-            id: Date.now() + Math.random(),
-            name: 'рисунок_' + Date.now() + '.png',
-            type: 'file',
-            content: dataUrl
-        });
-        renderDesktop();
-        saveToFirebase();
-        Swal.fire({ title: 'Сохранено!', timer: 1200, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+        const name = prompt('Название файла:', 'рисунок.png');
+        if (name) {
+            currentDesktopItems.push({ id: Date.now() + Math.random(), name, type: 'file', content: dataUrl });
+            renderDesktop();
+            saveToFirebase();
+            Swal.fire({ title: 'Сохранено!', timer: 1200, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+        }
+    };
+    
+    // Экспорт
+    win.querySelector('#kd-export-btn').onclick = () => {
+        const link = document.createElement('a');
+        link.download = 'kdraw-' + Date.now() + '.png';
+        link.href = kdCanvas.toDataURL('image/png');
+        link.click();
     };
     
     // Undo/Redo
@@ -2053,51 +2198,27 @@ function initKdTools(win) {
         if (kdHistoryIndex < kdHistory.length - 1) { kdHistoryIndex++; loadKdHistory(kdHistoryIndex); }
     };
     
+    // Слои
+    win.querySelector('#kd-add-layer').onclick = () => {
+        kdLayers.push({ name: 'Слой ' + (kdLayers.length + 1), data: null, visible: true });
+        kdActiveLayer = kdLayers.length - 1;
+        updateKdLayers(win);
+    };
+    updateKdLayers(win);
+    
     // Рисование
     kdCanvas.onmousedown = (e) => {
+        if (kdCanvas.style.display === 'none') return;
         kdIsDrawing = true;
         const rect = kdCanvas.getBoundingClientRect();
         kdStartX = e.clientX - rect.left;
         kdStartY = e.clientY - rect.top;
         
-        const activeTool = win.querySelector('.kd-tool-btn.active')?.dataset?.tool || 'brush';
-        
-        if (activeTool === 'fill') {
-            const imageData = kdCtx.getImageData(0, 0, kdCanvas.width, kdCanvas.height);
-            const idx = (Math.floor(kdStartY) * kdCanvas.width + Math.floor(kdStartX)) * 4;
-            const targetR = imageData.data[idx];
-            const targetG = imageData.data[idx + 1];
-            const targetB = imageData.data[idx + 2];
-            const fillR = parseInt(kdCurrentColor.slice(1, 3), 16);
-            const fillG = parseInt(kdCurrentColor.slice(3, 5), 16);
-            const fillB = parseInt(kdCurrentColor.slice(5, 7), 16);
-            
-            if (targetR === fillR && targetG === fillG && targetB === fillB) { kdIsDrawing = false; return; }
-            
-            const stack = [[Math.floor(kdStartX), Math.floor(kdStartY)]];
-            const visited = new Set();
-            
-            while (stack.length > 0) {
-                const [cx, cy] = stack.pop();
-                const key = cx + ',' + cy;
-                if (visited.has(key)) continue;
-                if (cx < 0 || cy < 0 || cx >= kdCanvas.width || cy >= kdCanvas.height) continue;
-                
-                const i = (cy * kdCanvas.width + cx) * 4;
-                if (imageData.data[i] !== targetR || imageData.data[i + 1] !== targetG || imageData.data[i + 2] !== targetB) continue;
-                
-                visited.add(key);
-                imageData.data[i] = fillR;
-                imageData.data[i + 1] = fillG;
-                imageData.data[i + 2] = fillB;
-                
-                stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
-            }
-            
-            kdCtx.putImageData(imageData, 0, 0);
+        if (kdCurrentTool === 'fill') {
+            floodFill(Math.floor(kdStartX), Math.floor(kdStartY), kdCurrentColor);
             saveKdHistory();
             kdIsDrawing = false;
-        } else if (activeTool === 'picker') {
+        } else if (kdCurrentTool === 'picker') {
             const data = kdCtx.getImageData(Math.floor(kdStartX), Math.floor(kdStartY), 1, 1).data;
             kdCurrentColor = '#' + [data[0], data[1], data[2]].map(v => v.toString(16).padStart(2, '0')).join('');
             win.querySelector('#kd-current-color').style.background = kdCurrentColor;
@@ -2111,25 +2232,39 @@ function initKdTools(win) {
         const rect = kdCanvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        const activeTool = win.querySelector('.kd-tool-btn.active')?.dataset?.tool || 'brush';
         
         kdCtx.lineWidth = kdBrushSize;
         kdCtx.lineCap = 'round';
         kdCtx.lineJoin = 'round';
         
-        if (activeTool === 'brush') {
+        if (kdCurrentTool === 'brush') {
             kdCtx.strokeStyle = kdCurrentColor;
             kdCtx.globalCompositeOperation = 'source-over';
-        } else if (activeTool === 'eraser') {
+        } else if (kdCurrentTool === 'eraser') {
             kdCtx.globalCompositeOperation = 'destination-out';
         } else {
             return;
         }
         
-        kdCtx.beginPath();
-        kdCtx.moveTo(kdStartX, kdStartY);
-        kdCtx.lineTo(x, y);
-        kdCtx.stroke();
+        // Эффект кисти
+        if (kdCurrentBrush === 'spray' && kdCurrentTool === 'brush') {
+            for (let i = 0; i < kdBrushSize; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * kdBrushSize;
+                const px = x + Math.cos(angle) * dist;
+                const py = y + Math.sin(angle) * dist;
+                kdCtx.fillStyle = kdCurrentColor;
+                kdCtx.fillRect(px, py, 1, 1);
+            }
+        } else if (kdCurrentBrush === 'square' && kdCurrentTool === 'brush') {
+            kdCtx.fillStyle = kdCurrentColor;
+            kdCtx.fillRect(x - kdBrushSize/2, y - kdBrushSize/2, kdBrushSize, kdBrushSize);
+        } else {
+            kdCtx.beginPath();
+            kdCtx.moveTo(kdStartX, kdStartY);
+            kdCtx.lineTo(x, y);
+            kdCtx.stroke();
+        }
         
         kdStartX = x;
         kdStartY = y;
@@ -2144,8 +2279,11 @@ function initKdTools(win) {
         kdIsDrawing = false;
     };
     
-    // Ctrl+Z / Ctrl+Shift+Z
+    // Горячие клавиши
     win.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        
+        // Ctrl+Z / Ctrl+Shift+Z
         if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
             e.preventDefault();
             if (kdHistoryIndex > 0) { kdHistoryIndex--; loadKdHistory(kdHistoryIndex); }
@@ -2154,17 +2292,20 @@ function initKdTools(win) {
             e.preventDefault();
             if (kdHistoryIndex < kdHistory.length - 1) { kdHistoryIndex++; loadKdHistory(kdHistoryIndex); }
         }
-    });
-    
-    // Горячие клавиши инструментов
-    win.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT') return;
-        const key = e.key.toLowerCase();
-        const tools = { 'b': 'brush', 'e': 'eraser', 'g': 'fill', 'i': 'picker' };
-        if (tools[key]) {
+        
+        // Инструменты
+        const tools = { 'b': 'brush', 'e': 'eraser', 'g': 'fill', 'i': 'picker', 's': 'shapes' };
+        if (tools[e.key.toLowerCase()]) {
+            kdCurrentTool = tools[e.key.toLowerCase()];
             win.querySelectorAll('.kd-tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
-            const btn = win.querySelector(`.kd-tool-btn[data-tool="${tools[key]}"]`);
+            const btn = win.querySelector(`.kd-tool-btn[data-tool="${kdCurrentTool}"]`);
             if (btn) btn.classList.add('active');
+        }
+        
+        // Ctrl+S сохранить
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            win.querySelector('#kd-save-btn').click();
         }
     });
     
@@ -2177,6 +2318,33 @@ function initKdTools(win) {
         kdCanvas.style.transform = 'scale(' + (newZoom / 100) + ')';
         win.querySelector('#kd-zoom-level').textContent = newZoom + '%';
     });
+    
+    // Закрытие меню фигур
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#kd-shapes-btn') && !e.target.closest('#kd-shapes-submenu')) {
+            win.querySelector('#kd-shapes-submenu').style.display = 'none';
+        }
+    });
+}
+
+function floodFill(x, y, fillColor) {
+    const imageData = kdCtx.getImageData(0, 0, kdCanvas.width, kdCanvas.height);
+    const idx = (y * kdCanvas.width + x) * 4;
+    const tR = imageData.data[idx], tG = imageData.data[idx + 1], tB = imageData.data[idx + 2];
+    const fR = parseInt(fillColor.slice(1, 3), 16), fG = parseInt(fillColor.slice(3, 5), 16), fB = parseInt(fillColor.slice(5, 7), 16);
+    if (tR === fR && tG === fG && tB === fB) return;
+    
+    const stack = [[x, y]], visited = new Set();
+    while (stack.length > 0) {
+        const [cx, cy] = stack.pop(), key = cx + ',' + cy;
+        if (visited.has(key) || cx < 0 || cy < 0 || cx >= kdCanvas.width || cy >= kdCanvas.height) continue;
+        const i = (cy * kdCanvas.width + cx) * 4;
+        if (imageData.data[i] !== tR || imageData.data[i + 1] !== tG || imageData.data[i + 2] !== tB) continue;
+        visited.add(key);
+        imageData.data[i] = fR; imageData.data[i + 1] = fG; imageData.data[i + 2] = fB;
+        stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+    kdCtx.putImageData(imageData, 0, 0);
 }
 
 console.log('✅ K-OS полностью обновлён!');
