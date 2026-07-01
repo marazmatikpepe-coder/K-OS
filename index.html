@@ -237,7 +237,7 @@
 
         <!-- ИКОНКИ РАБОЧЕГО СТОЛА -->
         <div id="desktop-icons" class="desktop-icons"></div>
-<div class="desktop-icon" onclick="openKdraw()" style="position: absolute; top: 20px; left: 20px;">
+<div class="desktop-icon" onclick="openKdraw()" style="position: absolute; top: 20px; left: 20px;" draggable="true" data-id="kdraw-app-icon">
     <div class="icon-img"><i class="fas fa-paint-brush" style="font-size: 48px; color: #667eea;"></i></div>
     <div class="icon-label">K-draw</div>
 </div>
@@ -269,6 +269,7 @@
                     <div class="app-list">
                         <div class="app-item" data-app="notepad"><i class="fas fa-edit"></i> Блокнот</div>
                         <div class="app-item" data-app="gallery"><i class="fas fa-images"></i> Галерея</div>
+                       <div class="app-item" data-app="kdraw" onclick="openKdraw()"><i class="fas fa-paint-brush"></i> K-draw</div>
                     </div>
                 </div>
                 <div class="apps-section">
