@@ -588,5 +588,32 @@
     .kd-shape-btn:hover { background: rgba(255,255,255,0.1); color: white; }
     .kd-brush-btn.active { border-color: rgba(102,126,234,0.6) !important; }
 </style>
+    <!-- КОНСТРУКТОР ПРИЛОЖЕНИЙ -->
+<div id="app-builder-window" class="floating-window glass-panel" style="display:none;position:fixed;top:5%;left:5%;width:90%;height:85%;z-index:9999;flex-direction:column;">
+    <div class="window-header" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-weight:600;">🧩 Конструктор приложений</span>
+        <button onclick="document.getElementById('app-builder-window').style.display='none'" style="background:none;border:none;color:white;cursor:pointer;font-size:20px;">✕</button>
+    </div>
+    <div style="display:flex;flex:1;overflow:hidden;">
+        <!-- Редактор -->
+        <div style="flex:1;display:flex;flex-direction:column;padding:16px;gap:12px;">
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="builder-app-name" placeholder="Название приложения" style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:white;outline:none;">
+                <input type="text" id="builder-app-url" placeholder="URL сайта или HTML код" style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:white;outline:none;">
+            </div>
+            <textarea id="builder-html-code" placeholder="Или вставь HTML код здесь..." style="flex:1;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;color:#e0e0e0;font-family:monospace;font-size:13px;resize:none;outline:none;"></textarea>
+            <div style="display:flex;gap:8px;">
+                <button onclick="testApp()" style="padding:10px 20px;background:rgba(78,205,196,0.2);color:#4ecdc4;border:none;border-radius:10px;cursor:pointer;">▶ Тест</button>
+                <button onclick="saveAppToDesktop()" style="padding:10px 20px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:10px;cursor:pointer;">💾 Сохранить как .exe</button>
+                <button onclick="installApp()" style="padding:10px 20px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.1);border-radius:10px;cursor:pointer;">📦 Установить</button>
+            </div>
+        </div>
+        <!-- Предпросмотр -->
+        <div style="flex:1;border-left:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;">
+            <div style="padding:8px 12px;font-size:11px;opacity:0.4;border-bottom:1px solid rgba(255,255,255,0.04);">Предпросмотр</div>
+            <iframe id="builder-preview" style="flex:1;border:none;background:white;width:100%;"></iframe>
+        </div>
+    </div>
+</div>
 </body>
 </html>
