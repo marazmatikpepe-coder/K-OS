@@ -174,7 +174,12 @@ function createTaskbar() {
 }
 
 function renderTaskbar() {
-    const taskbar = document.getElementById('taskbar') || createTaskbar();
+    // Создаём таскбар если его нет
+    if (!document.getElementById('taskbar')) {
+        createTaskbar();
+    }
+    const taskbar = document.getElementById('taskbar');
+    if (!taskbar) return;
     const center = taskbar.querySelector('#taskbar-center');
     if (!center) return;
     
@@ -345,43 +350,6 @@ function unfocusWindow(win) {
         renderTaskbar();
     }
 }
-
-// Обновляем createWindow для поддержки фокусировки
-const originalCreateWindow = createWindow;
-createWindow = function(options) {
-    const win = originalCreateWindow(options);
-    
-    // Добавляем обработчик фокуса
-    win.addEventListener('mousedown', () => {
-        focusWindow(win);
-    });
-    
-    // Автоматически фокусируем новое окно
-    focusWindow(win);
-    
-    return win;
-};
-
-// Обновляем closeWindow для обновления таскбара
-const originalCloseWindow = closeWindow;
-closeWindow = function(win) {
-    const appData = getAppDataFromWindow(win);
-    originalCloseWindow(win);
-    if (focusedWindow === win) {
-        focusedWindow = null;
-    }
-    renderTaskbar();
-};
-
-// Обновляем minimizeWindow для обновления таскбара
-const originalMinimizeWindow = minimizeWindow;
-minimizeWindow = function(win) {
-    originalMinimizeWindow(win);
-    if (focusedWindow === win) {
-        focusedWindow = null;
-    }
-    renderTaskbar();
-};
 
 // ===== РЕНДЕР ДЕСКТОПА =====
 function renderDesktop() {
@@ -697,7 +665,7 @@ function createWindow(options) {
         };
     });
     
-    // Перетаскивание окна
+       // Перетаскивание окна
     const header = win.querySelector('.window-header');
     if (header) {
         header.addEventListener('mousedown', (e) => {
@@ -707,10 +675,13 @@ function createWindow(options) {
         });
     }
     
-    // Фокусировка при клике
+    // Фокусировка при клике на окно
     win.addEventListener('mousedown', () => {
         focusWindow(win);
     });
+    
+    // Автоматически фокусируем новое окно
+    setTimeout(() => focusWindow(win), 10);
     
     return win;
 }
