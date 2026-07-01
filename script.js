@@ -241,7 +241,8 @@ function renderTaskbar() {
             
             // Ищем открытое окно для этого приложения
             const openWindow = activeWindows.find(w => {
-                const wTitle = w.querySelector('.window-title')?.textContent?.trim();
+              const titleEl = w.querySelector('.window-title');
+const wTitle = titleEl ? titleEl.textContent.trim() : '';
                 return wTitle === app.title;
             });
             
@@ -257,10 +258,12 @@ function renderTaskbar() {
     
     // Затем открытые окна, которых нет в закреплённых
     activeWindows.forEach(win => {
-        const title = win.querySelector('.window-title')?.textContent?.trim() || 'Окно';
+        const titleEl = win.querySelector('.window-title');
+const title = titleEl ? titleEl.textContent.trim() : 'Окно';
         if (!addedTitles.has(title)) {
             addedTitles.add(title);
-            const iconClass = win.querySelector('.window-title i')?.className || 'fas fa-file';
+           const iconEl = win.querySelector('.window-title i');
+const iconClass = iconEl ? iconEl.className : 'fas fa-file';
             
             allItems.push({
                 title: title,
@@ -322,8 +325,8 @@ function renderTaskbar() {
             const menuData = {
                 title: itemData.title,
                 icon: itemData.icon,
-                id: itemData.appData?.id || itemData.title,
-                type: itemData.appData?.type || 'window',
+                id: (itemData.appData && itemData.appData.id) ? itemData.appData.id : itemData.title,
+type: (itemData.appData && itemData.appData.type) ? itemData.appData.type : 'window',
                 window: win
             };
             
@@ -343,8 +346,10 @@ function renderTaskbar() {
 }
 
 function getAppDataFromWindow(win) {
-    const title = win.querySelector('.window-title')?.textContent?.trim() || 'Окно';
-    const iconClass = win.querySelector('.window-title i')?.className || 'fas fa-file';
+   const titleEl = win.querySelector('.window-title');
+const title = titleEl ? titleEl.textContent.trim() : 'Окно';
+    const iconEl = win.querySelector('.window-title i');
+const iconClass = iconEl ? iconEl.className : 'fas fa-file';
     const id = win.dataset.fileId || win.dataset.folderId || 'window-' + Date.now();
     
     return {
@@ -2054,9 +2059,9 @@ function initKdrawEvents() {
         document.getElementById('kd-new-canvas-modal').style.display = 'none';
     });
     
-    // Drawing
-    kdCanvas.addEventListener('mousedown', (e) => {
-        kdIsDrawing = true;
+    // Drawing — проверяем что canvas существует
+if (!kdCanvas) return;
+kdCanvas.addEventListener('mousedown', (e) => {
         const rect = kdCanvas.getBoundingClientRect();
         kdStartX = e.clientX - rect.left;
         kdStartY = e.clientY - rect.top;
@@ -2099,7 +2104,15 @@ function initKdrawEvents() {
     kdCanvas.addEventListener('mouseleave', () => { kdIsDrawing = false; });
     
     // HEX copy
-    document.getElementById('kd-hex-input').addEventListener('click', function() {
+    const hexInput = document.getElementById('kd-hex-input');
+if (hexInput) {
+    hexInput.addEventListener('click', function() {
+        this.select();
+        navigator.clipboard.writeText(this.value).then(() => {
+            showToast('Скопировано!');
+        });
+    });
+}
         this.select();
         navigator.clipboard.writeText(this.value).then(() => {
             showToast('Скопировано!');
