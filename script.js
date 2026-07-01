@@ -33,6 +33,9 @@ let dragOffsetX = 0;
 let dragOffsetY = 0;
 let dragWindow = null;
 let dragData = null;
+let focusedWindow = null;
+let pinnedApps = [];
+let taskbarItems = [];
 
 const loadingScreen = document.getElementById('loading-screen');
 const authScreen = document.getElementById('auth-screen');
@@ -42,8 +45,8 @@ const desktop = document.getElementById('desktop');
 
 // ===== ЗАПРЕТ ВЫДЕЛЕНИЯ И ПКМ =====
 document.addEventListener('contextmenu', (e) => {
-    // Разрешаем ПКМ только на рабочем столе и иконках
-    if (e.target.closest('#desktop') || e.target.closest('#desktop-icons') || e.target.closest('.desktop-icon')) {
+    // Разрешаем ПКМ только на рабочем столе, иконках и таскбаре
+    if (e.target.closest('#desktop') || e.target.closest('#desktop-icons') || e.target.closest('.desktop-icon') || e.target.closest('.taskbar-item')) {
         return;
     }
     // Запрещаем ПКМ на картинках, логотипах и т.д.
@@ -93,6 +96,7 @@ function showScreen(screen) {
         if (screen === desktop) {
             applyConfig();
             renderDesktop();
+            renderTaskbar();
             startAutoSave();
         }
     }
@@ -105,7 +109,8 @@ async function saveToFirebase() {
         await setDoc(userRef, {
             desktopItems: currentDesktopItems,
             trashItems: trashItems,
-            config: systemConfig
+            config: systemConfig,
+            pinnedApps: pinnedApps
         }, { merge: true });
     } catch (e) {
         console.error('Save error:', e);
@@ -121,12 +126,16 @@ async function loadFromFirebase() {
             const data = docSnap.data();
             currentDesktopItems = data.desktopItems || [];
             trashItems = data.trashItems || [];
+            pinnedApps = data.pinnedApps || [];
             systemConfig = { ...systemConfig, ...data.config };
             applyConfig();
             renderDesktop();
+            renderTaskbar();
         } else {
             currentDesktopItems = [];
+            pinnedApps = [];
             renderDesktop();
+            renderTaskbar();
         }
     } catch (e) {
         console.error('Load error:', e);
@@ -142,11 +151,237 @@ function applyConfig() {
     }
     
     document.body.classList.toggle('light-theme', systemConfig.theme === 'light');
-    // Применяем настройки жидкого стекла
     document.documentElement.style.setProperty('--glass-opacity', systemConfig.glassOpacity || 0.6);
     document.documentElement.style.setProperty('--glass-blur', (systemConfig.glassBlur || 20) + 'px');
     document.documentElement.style.setProperty('--glass-border', systemConfig.glassBorder || 0.1);
 }
+
+// ===== ТАСКБАР =====
+function createTaskbar() {
+    const existing = document.getElementById('taskbar');
+    if (existing) return existing;
+    
+    const taskbar = document.createElement('div');
+    taskbar.id = 'taskbar';
+    taskbar.className = 'taskbar glass-panel';
+    taskbar.innerHTML = `
+        <div class="taskbar-left" id="taskbar-left"></div>
+        <div class="taskbar-center" id="taskbar-center"></div>
+        <div class="taskbar-right" id="taskbar-right"></div>
+    `;
+    desktop.appendChild(taskbar);
+    return taskbar;
+}
+
+function renderTaskbar() {
+    const taskbar = document.getElementById('taskbar') || createTaskbar();
+    const center = taskbar.querySelector('#taskbar-center');
+    if (!center) return;
+    
+    center.innerHTML = '';
+    
+    // Добавляем закрепленные приложения
+    pinnedApps.forEach(app => {
+        const item = createTaskbarItem(app);
+        center.appendChild(item);
+    });
+    
+    // Добавляем открытые окна
+    openWindows.forEach(win => {
+        const appData = getAppDataFromWindow(win);
+        // Проверяем, не закреплено ли уже
+        if (!pinnedApps.find(a => a.id === appData.id)) {
+            const item = createTaskbarItem(appData);
+            center.appendChild(item);
+        }
+    });
+}
+
+function getAppDataFromWindow(win) {
+    const title = win.querySelector('.window-title')?.textContent?.trim() || 'Окно';
+    const iconClass = win.querySelector('.window-title i')?.className || 'fas fa-file';
+    const id = win.dataset.fileId || win.dataset.folderId || 'window-' + Date.now();
+    
+    return {
+        id: id,
+        title: title,
+        icon: iconClass,
+        type: win.dataset.fileId ? 'file' : win.dataset.folderId ? 'folder' : 'window',
+        window: win
+    };
+}
+
+function createTaskbarItem(appData) {
+    const item = document.createElement('div');
+    item.className = 'taskbar-item';
+    item.dataset.appId = appData.id;
+    item.draggable = false;
+    
+    const isFocused = focusedWindow && appData.window && focusedWindow === appData.window;
+    const isPinned = pinnedApps.find(a => a.id === appData.id);
+    const isOpen = openWindows.includes(appData.window);
+    
+    if (isFocused && isOpen) {
+        item.classList.add('focused');
+    } else if (isOpen) {
+        item.classList.add('open');
+    }
+    
+    item.innerHTML = `
+        <div class="taskbar-item-icon">
+            <i class="${appData.icon}"></i>
+        </div>
+    `;
+    
+    item.title = appData.title;
+    
+    item.onclick = () => {
+        if (appData.window && openWindows.includes(appData.window)) {
+            if (appData.window.style.display === 'none') {
+                appData.window.style.display = 'flex';
+            }
+            bringToFront(appData.window);
+            focusWindow(appData.window);
+        } else if (isPinned) {
+            // Запустить приложение
+            launchApp(appData);
+        }
+    };
+    
+    item.oncontextmenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showTaskbarContextMenu(e.pageX, e.pageY, appData, item);
+    };
+    
+    return item;
+}
+
+function showTaskbarContextMenu(x, y, appData, item) {
+    const menu = document.getElementById('taskbar-context-menu');
+    if (!menu) return;
+    
+    const isPinned = pinnedApps.find(a => a.id === appData.id);
+    const isOpen = appData.window && openWindows.includes(appData.window);
+    
+    menu.innerHTML = `
+        <div class="context-item-header">
+            <i class="${appData.icon}"></i>
+            <span>${appData.title}</span>
+        </div>
+        <div class="context-item" data-action="pin">
+            <i class="fas fa-thumbtack"></i> ${isPinned ? 'Открепить от панели' : 'Закрепить на панели'}
+        </div>
+        ${isOpen ? `<div class="context-item" data-action="close"><i class="fas fa-times"></i> Закрыть</div>` : ''}
+        ${isPinned && !isOpen ? `<div class="context-item" data-action="open"><i class="fas fa-play"></i> Открыть</div>` : ''}
+    `;
+    
+    menu.style.left = Math.min(x, window.innerWidth - 250) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - 150) + 'px';
+    menu.style.display = 'flex';
+    
+    menu.querySelectorAll('.context-item').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const action = btn.dataset.action;
+            
+            if (action === 'pin') {
+                if (isPinned) {
+                    pinnedApps = pinnedApps.filter(a => a.id !== appData.id);
+                } else {
+                    pinnedApps.push({
+                        id: appData.id,
+                        title: appData.title,
+                        icon: appData.icon,
+                        type: appData.type,
+                        fileId: appData.id,
+                        content: appData.content
+                    });
+                }
+                saveToFirebase();
+                renderTaskbar();
+            } else if (action === 'close') {
+                if (appData.window) {
+                    closeWindow(appData.window);
+                }
+            } else if (action === 'open') {
+                launchApp(appData);
+            }
+            
+            menu.style.display = 'none';
+        };
+    });
+}
+
+function launchApp(appData) {
+    // Находим или создаем окно для приложения
+    if (appData.type === 'file' || appData.fileId) {
+        const item = currentDesktopItems.find(i => i.id == appData.id);
+        if (item) {
+            openFile(item);
+        }
+    } else if (appData.type === 'folder' || appData.folderId) {
+        const item = currentDesktopItems.find(i => i.id == appData.id);
+        if (item) {
+            openFolderWindow(item);
+        }
+    }
+}
+
+function focusWindow(win) {
+    if (focusedWindow && focusedWindow !== win) {
+        focusedWindow.classList.remove('focused');
+    }
+    focusedWindow = win;
+    win.classList.add('focused');
+    bringToFront(win);
+    renderTaskbar();
+}
+
+function unfocusWindow(win) {
+    if (focusedWindow === win) {
+        focusedWindow = null;
+        win.classList.remove('focused');
+        renderTaskbar();
+    }
+}
+
+// Обновляем createWindow для поддержки фокусировки
+const originalCreateWindow = createWindow;
+createWindow = function(options) {
+    const win = originalCreateWindow(options);
+    
+    // Добавляем обработчик фокуса
+    win.addEventListener('mousedown', () => {
+        focusWindow(win);
+    });
+    
+    // Автоматически фокусируем новое окно
+    focusWindow(win);
+    
+    return win;
+};
+
+// Обновляем closeWindow для обновления таскбара
+const originalCloseWindow = closeWindow;
+closeWindow = function(win) {
+    const appData = getAppDataFromWindow(win);
+    originalCloseWindow(win);
+    if (focusedWindow === win) {
+        focusedWindow = null;
+    }
+    renderTaskbar();
+};
+
+// Обновляем minimizeWindow для обновления таскбара
+const originalMinimizeWindow = minimizeWindow;
+minimizeWindow = function(win) {
+    originalMinimizeWindow(win);
+    if (focusedWindow === win) {
+        focusedWindow = null;
+    }
+    renderTaskbar();
+};
 
 // ===== РЕНДЕР ДЕСКТОПА =====
 function renderDesktop() {
@@ -272,7 +507,7 @@ function openFile(item) {
 function openImageViewer(item) {
     const existing = document.querySelector(`[data-file-id="${item.id}"]`);
     if (existing) {
-        bringToFront(existing);
+        focusWindow(existing);
         return;
     }
     
@@ -293,13 +528,14 @@ function openImageViewer(item) {
     
     document.body.appendChild(win);
     openWindows.push(win);
+    renderTaskbar();
 }
 
 // ===== БЛОКНОТ =====
 function openNotepad(item) {
     const existing = document.querySelector(`[data-file-id="${item.id}"]`);
     if (existing) {
-        bringToFront(existing);
+        focusWindow(existing);
         return;
     }
     
@@ -332,6 +568,7 @@ function openNotepad(item) {
     
     document.body.appendChild(win);
     openWindows.push(win);
+    renderTaskbar();
     
     const textarea = win.querySelector('.notepad-textarea');
     
@@ -466,8 +703,14 @@ function createWindow(options) {
         header.addEventListener('mousedown', (e) => {
             if (e.target.closest('.win-btn') || e.target.closest('.window-controls')) return;
             startDrag(win, e);
+            focusWindow(win);
         });
     }
+    
+    // Фокусировка при клике
+    win.addEventListener('mousedown', () => {
+        focusWindow(win);
+    });
     
     return win;
 }
@@ -478,11 +721,19 @@ function closeWindow(win) {
     setTimeout(() => {
         win.remove();
         openWindows = openWindows.filter(w => w !== win);
+        if (focusedWindow === win) {
+            focusedWindow = null;
+        }
+        renderTaskbar();
     }, 200);
 }
 
 function minimizeWindow(win) {
     win.style.display = 'none';
+    if (focusedWindow === win) {
+        focusedWindow = null;
+    }
+    renderTaskbar();
 }
 
 function toggleMaximize(win) {
@@ -504,6 +755,7 @@ function startDrag(win, e) {
     win.style.left = rect.left + 'px';
     win.style.top = rect.top + 'px';
     bringToFront(win);
+    focusWindow(win);
 }
 
 document.addEventListener('mousemove', (e) => {
@@ -521,7 +773,7 @@ document.addEventListener('mouseup', () => {
 function openFolderWindow(folder) {
     const existing = document.querySelector(`[data-folder-id="${folder.id}"]`);
     if (existing) {
-        bringToFront(existing);
+        focusWindow(existing);
         return;
     }
     
@@ -549,6 +801,7 @@ function openFolderWindow(folder) {
     
     document.body.appendChild(win);
     openWindows.push(win);
+    renderTaskbar();
     
     const content = win.querySelector('.folder-content');
     
@@ -579,7 +832,6 @@ function openFolderWindow(folder) {
                         openFile(item);
                     }
                 };
-                // Добавляем возможность перетаскивать из папки
                 div.draggable = true;
                 div.addEventListener('dragstart', (e) => {
                     e.dataTransfer.setData('text/plain', item.id);
@@ -597,7 +849,6 @@ function openFolderWindow(folder) {
                 icon.style.width = '70px';
                 const img = icon.querySelector('.icon-img');
                 if (img) img.style.fontSize = '28px';
-                // Добавляем возможность перетаскивать из папки
                 icon.draggable = true;
                 icon.addEventListener('dragstart', (e) => {
                     e.dataTransfer.setData('text/plain', item.id);
@@ -614,7 +865,6 @@ function openFolderWindow(folder) {
 
     renderFolderContent();
 
-    // Переключение вида
     win.querySelectorAll('.view-btn').forEach(btn => {
         btn.onclick = () => {
             win.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
@@ -623,7 +873,6 @@ function openFolderWindow(folder) {
         };
     });
 
-    // Drag & Drop в папку
     content.addEventListener('dragover', (e) => {
         e.preventDefault();
         content.style.background = 'rgba(102, 126, 234, 0.1)';
@@ -645,7 +894,6 @@ function openFolderWindow(folder) {
         
         const item = currentDesktopItems.find(i => i.id == id);
         if (item && item.id !== folder.id) {
-            // Если файл был на рабочем столе с позицией - убираем позицию
             delete item.x;
             delete item.y;
             item.parentId = folder.id;
@@ -664,7 +912,7 @@ function openFolderWindow(folder) {
 function openTrash() {
     const existing = document.getElementById('trash-window');
     if (existing) {
-        bringToFront(existing);
+        focusWindow(existing);
         return;
     }
     
@@ -688,10 +936,10 @@ function openTrash() {
     win.id = 'trash-window';
     document.body.appendChild(win);
     openWindows.push(win);
+    renderTaskbar();
     
     renderTrashContent(win);
     
-    // Кнопки
     win.querySelector('.restore-all').onclick = restoreAllTrash;
     win.querySelector('.clear-all').onclick = clearTrash;
 }
@@ -720,7 +968,6 @@ function renderTrashContent(win) {
         content.appendChild(div);
     });
     
-    // Вешаем события на кнопки восстановления
     content.querySelectorAll('.restore-item').forEach(btn => {
         btn.onclick = (e) => {
             e.stopPropagation();
@@ -778,14 +1025,12 @@ function restoreAllTrash() {
 
 // ===== КОНТЕКСТНОЕ МЕНЮ =====
 function showFileContextMenu(x, y, item) {
-    // Закрываем меню рабочего стола
     const desktopMenu = document.getElementById('context-menu');
     if (desktopMenu) desktopMenu.style.display = 'none';
     
     const menu = document.getElementById('file-context-menu');
     if (!menu) return;
     
-    // Восстанавливаем стандартные пункты меню для файла/папки
     menu.innerHTML = `
         <div class="context-item" data-action="open"><i class="fas fa-folder-open"></i> Открыть</div>
         <div class="context-item" data-action="rename"><i class="fas fa-pen"></i> Переименовать</div>
@@ -823,7 +1068,6 @@ function showFileContextMenu(x, y, item) {
 }
 
 function showTrashContext(x, y) {
-    // Закрываем меню рабочего стола
     const desktopMenu = document.getElementById('context-menu');
     if (desktopMenu) desktopMenu.style.display = 'none';
     
@@ -834,7 +1078,6 @@ function showTrashContext(x, y) {
     menu.style.top = Math.min(y, window.innerHeight - 180) + 'px';
     menu.style.display = 'flex';
     
-    // Очищаем и заполняем меню для корзины
     menu.innerHTML = `
         <div class="context-item" data-action="open-trash"><i class="fas fa-trash-alt"></i> Открыть корзину</div>
         <div class="context-item" data-action="clear-trash"><i class="fas fa-trash"></i> Очистить корзину</div>
@@ -853,12 +1096,10 @@ function showTrashContext(x, y) {
 
 // ===== ПКМ ПО РАБОЧЕМУ СТОЛУ =====
 desktop?.addEventListener('contextmenu', (e) => {
-    // Проверяем что клик именно по рабочему столу, а не по иконке
     if (e.target === desktop || e.target.id === 'desktop-icons' || e.target.closest('#desktop-icons')) {
         e.preventDefault();
         e.stopPropagation();
         
-        // Закрываем меню файла
         const fileMenu = document.getElementById('file-context-menu');
         if (fileMenu) fileMenu.style.display = 'none';
         
@@ -868,7 +1109,6 @@ desktop?.addEventListener('contextmenu', (e) => {
             menu.style.top = Math.min(e.pageY, window.innerHeight - 250) + 'px';
             menu.style.display = 'flex';
             
-            // Обновляем обработчики для пунктов меню
             menu.querySelectorAll('.context-item').forEach(btn => {
                 btn.onclick = (e) => {
                     e.stopPropagation();
@@ -947,7 +1187,6 @@ document.addEventListener('drop', async (e) => {
 
 // ===== ПЕРСОНАЛИЗАЦИЯ =====
 document.addEventListener('DOMContentLoaded', () => {
-    // Обои
     document.querySelectorAll('.wallpaper-item').forEach(item => {
         item.onclick = () => {
             const url = item.style.backgroundImage.slice(5, -2);
@@ -958,7 +1197,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
     
-    // Язык
     document.querySelectorAll('.lang-option').forEach(btn => {
         btn.onclick = () => {
             document.querySelectorAll('.lang-option').forEach(b => b.classList.remove('active'));
@@ -967,7 +1205,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
     
-    // Тема
     document.querySelectorAll('.theme-option').forEach(opt => {
         opt.onclick = () => {
             document.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
@@ -977,7 +1214,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
     
-    // Жидкое стекло
     const glassSlider = document.getElementById('glass-intensity');
     if (glassSlider) {
         glassSlider.value = systemConfig.glassOpacity * 100 || 60;
@@ -985,14 +1221,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const val = glassSlider.value / 100;
             systemConfig.glassOpacity = val;
             document.documentElement.style.setProperty('--glass-opacity', val);
-            // Применяем ко всем glass-panel элементам
             document.querySelectorAll('.glass-panel').forEach(panel => {
                 panel.style.background = `rgba(30, 30, 40, ${val})`;
             });
         };
     }
     
-    // Сохранение
     document.getElementById('save-personalize')?.addEventListener('click', () => {
         saveToFirebase();
         document.getElementById('personalize-modal').style.display = 'none';
@@ -1007,7 +1241,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // Закрытие модалки
     document.querySelector('.modal-close')?.addEventListener('click', () => {
         document.getElementById('personalize-modal').style.display = 'none';
     });
@@ -1194,7 +1427,6 @@ document.addEventListener('dragend', (e) => {
     dragData = null;
 });
 
-// Единый обработчик для рабочего стола
 const desktopIcons = document.getElementById('desktop-icons');
 
 desktopIcons?.addEventListener('dragover', (e) => {
@@ -1207,7 +1439,6 @@ desktopIcons?.addEventListener('drop', (e) => {
     const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
     if (!id) return;
     
-    // Если перетаскивают корзину - обновляем только позицию
     if (id === 'trash' || (dragData && dragData.isTrash)) {
         const trashIcon = document.querySelector('.trash-icon');
         if (trashIcon) {
@@ -1225,12 +1456,10 @@ desktopIcons?.addEventListener('drop', (e) => {
     const item = currentDesktopItems.find(i => i.id == id);
     if (!item) return;
     
-    // Если файл был в папке, убираем его оттуда
     if (item.parentId) {
         delete item.parentId;
     }
     
-    // Сохраняем позицию
     const rect = desktopIcons.getBoundingClientRect();
     item.x = e.clientX - rect.left - 42;
     item.y = e.clientY - rect.top - 42;
@@ -1238,13 +1467,11 @@ desktopIcons?.addEventListener('drop', (e) => {
     saveToFirebase();
     renderDesktop();
     
-    // Обновляем открытые папки
     document.querySelectorAll('.floating-window[data-folder-id]').forEach(win => {
         const folderId = win.dataset.folderId;
         if (folderId) {
             const folder = currentDesktopItems.find(i => i.id == folderId);
             if (folder) {
-                // Закрываем и открываем заново
                 win.remove();
                 openWindows = openWindows.filter(w => w !== win);
                 openFolderWindow(folder);
@@ -1260,11 +1487,27 @@ document.addEventListener('click', (e) => {
     if (!e.target.closest('.context-menu')) {
         document.getElementById('context-menu').style.display = 'none';
         document.getElementById('file-context-menu').style.display = 'none';
+        const taskbarMenu = document.getElementById('taskbar-context-menu');
+        if (taskbarMenu) taskbarMenu.style.display = 'none';
     }
 });
 
+// Добавляем контекстное меню таскбара в DOM
+function addTaskbarContextMenu() {
+    if (document.getElementById('taskbar-context-menu')) return;
+    const menu = document.createElement('div');
+    menu.id = 'taskbar-context-menu';
+    menu.className = 'context-menu glass-panel';
+    menu.style.display = 'none';
+    document.body.appendChild(menu);
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', () => {
+    addTaskbarContextMenu();
+});
+
 console.log('✅ K-OS полностью обновлён!');
-console.log('✅ Исправлены: движение окон, кнопки, контекстное меню, корзина');
-console.log('✅ Запрещено выделение и ПКМ на изображениях/логотипах');
-console.log('✅ Корзина теперь перетаскивается');
-console.log('✅ Жидкое стекло применяется корректно');
+console.log('✅ Добавлен таскбар с управлением окнами');
+console.log('✅ Закрепление приложений на панели');
+console.log('✅ Контекстное меню для иконок таскбара');
