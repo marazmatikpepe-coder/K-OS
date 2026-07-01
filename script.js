@@ -644,8 +644,11 @@ function createDesktopIcon(item) {
 // ===== ОТКРЫТИЕ ФАЙЛОВ =====
 function openFile(item) {
     const isImage = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
+    const isExe = item.name.endsWith('.exe') || item.name.endsWith('.ky');
     
-    if (isImage) {
+    if (isExe) {
+        openExeApp(item);
+    } else if (isImage) {
         openImageViewer(item);
     } else if (item.name.endsWith('.txt') || item.name.endsWith('.doc')) {
         openNotepad(item);
@@ -659,7 +662,163 @@ function openFile(item) {
         });
     }
 }
+// ===== ОТКРЫТИЕ EXE ПРИЛОЖЕНИЙ =====
+function openExeApp(item) {
+    const existing = document.querySelector(`[data-file-id="${item.id}"]`);
+    if (existing) {
+        focusWindow(existing);
+        return;
+    }
+    
+    // Если контент пустой — показываем конструктор
+    if (!item.content || item.content.trim() === '') {
+        Swal.fire({
+            title: 'Пустое приложение',
+            text: 'Этот .exe файл пуст. Открыть конструктор для создания кода?',
+            icon: 'question',
+            background: '#1a1a2e',
+            color: '#fff',
+            showCancelButton: true,
+            confirmButtonText: 'Открыть конструктор',
+            cancelButtonText: 'Отмена'
+        }).then(result => {
+            if (result.isConfirmed) {
+                openAppBuilder(item);
+            }
+        });
+        return;
+    }
+    
+    // Если контент — это HTML код, запускаем в окне
+    if (item.content.includes('<!DOCTYPE') || item.content.includes('<html') || item.content.includes('<script')) {
+        openAppWindow(item);
+        return;
+    }
+    
+    // Если контент — это URL
+    if (item.content.startsWith('http://') || item.content.startsWith('https://')) {
+        openWebApp(item);
+        return;
+    }
+    
+    // По умолчанию — пытаемся открыть как HTML
+    openAppWindow(item);
+}
 
+function openAppWindow(item) {
+    const win = createWindow({
+        title: item.name.replace('.exe', '').replace('.ky', ''),
+        icon: 'fa-window-maximize',
+        fileId: item.id,
+        width: 800,
+        height: 600,
+        body: `
+            <iframe 
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                style="width: 100%; height: 100%; border: none; background: white; border-radius: 0 0 16px 16px;"
+                srcdoc="${item.content.replace(/"/g, '&quot;').replace(/`/g, '&#96;').replace(/\n/g, ' ')}"
+            ></iframe>
+        `,
+        bodyStyle: 'padding: 0; flex: 1; overflow: hidden; border-radius: 0 0 20px 20px;'
+    });
+    
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+}
+
+function openWebApp(item) {
+    const win = createWindow({
+        title: item.name.replace('.exe', '').replace('.ky', ''),
+        icon: 'fa-globe',
+        fileId: item.id,
+        width: 800,
+        height: 600,
+        body: `
+            <iframe 
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"
+                style="width: 100%; height: 100%; border: none; background: white; border-radius: 0 0 16px 16px;"
+                src="${item.content}"
+            ></iframe>
+        `,
+        bodyStyle: 'padding: 0; flex: 1; overflow: hidden; border-radius: 0 0 20px 20px;'
+    });
+    
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+}
+
+function openAppBuilder(item) {
+    const existing = document.querySelector(`[data-file-id="builder-${item.id}"]`);
+    if (existing) {
+        focusWindow(existing);
+        return;
+    }
+    
+    const win = createWindow({
+        title: 'Конструктор: ' + item.name,
+        icon: 'fa-code',
+        fileId: 'builder-' + item.id,
+        width: 700,
+        height: 500,
+        body: `
+            <div style="display: flex; flex-direction: column; height: 100%; gap: 12px;">
+                <div style="display: flex; gap: 8px;">
+                    <select id="app-type-select" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 12px; color: white; font-size: 13px;">
+                        <option value="web">Веб-приложение (HTML)</option>
+                        <option value="url">Ссылка (URL)</option>
+                    </select>
+                </div>
+                <textarea id="app-code-area" placeholder="Введите HTML код или URL..." style="flex: 1; width: 100%; background: rgba(0,0,0,0.3); color: #e0e0e0; border: none; border-radius: 12px; padding: 16px; font-family: 'Courier New', monospace; font-size: 13px; resize: none; outline: none;">${item.content || '<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { \n            background: #1a1a2e; \n            color: white; \n            font-family: Arial; \n            padding: 20px;\n        }\n    </style>\n</head>\n<body>\n    <h1>Привет, K-OS!</h1>\n    <p>Моё первое приложение</p>\n</body>\n</html>'}</textarea>
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button id="test-app-btn" style="padding: 8px 16px; border: none; border-radius: 10px; background: rgba(78,205,196,0.2); color: #4ecdc4; cursor: pointer; font-size: 13px;">▶ Тест</button>
+                    <button id="save-app-btn" style="padding: 8px 16px; border: none; border-radius: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; cursor: pointer; font-size: 13px;">💾 Сохранить</button>
+                </div>
+            </div>
+        `,
+        bodyStyle: 'padding: 16px; flex: 1;'
+    });
+    
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+    
+    // Кнопка Тест
+    win.querySelector('#test-app-btn').onclick = () => {
+        const code = win.querySelector('#app-code-area').value;
+        const type = win.querySelector('#app-type-select').value;
+        
+        const tempItem = {
+            id: 'test-' + Date.now(),
+            name: 'test.exe',
+            content: type === 'url' ? code : code
+        };
+        
+        if (type === 'url') {
+            openWebApp(tempItem);
+        } else {
+            openAppWindow(tempItem);
+        }
+    };
+    
+    // Кнопка Сохранить
+    win.querySelector('#save-app-btn').onclick = () => {
+        const code = win.querySelector('#app-code-area').value;
+        item.content = code;
+        saveToFirebase();
+        
+        Swal.fire({
+            title: 'Сохранено!',
+            text: 'Приложение обновлено',
+            icon: 'success',
+            timer: 1000,
+            showConfirmButton: false,
+            background: '#1a1a2e',
+            color: '#fff'
+        });
+    };
+}
 // ===== ПРОСМОТР ИЗОБРАЖЕНИЙ =====
 function openImageViewer(item) {
     const existing = document.querySelector(`[data-file-id="${item.id}"]`);
