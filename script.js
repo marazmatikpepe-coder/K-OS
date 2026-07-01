@@ -1886,198 +1886,189 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 // ===== K-DRAW =====
 let kdCanvas, kdCtx, kdIsDrawing = false, kdCurrentTool = 'brush', kdCurrentBrush = 'round';
-let kdBrushSize = 5, kdCurrentColor = '#000000', kdCanvasBg = '#ffffff';
-let kdLayers = [{ canvas: null, visible: true }];
-let kdActiveLayer = 0;
-let kdHistory = [];
+let kdBrushSize = 5, kdCurrentColor = '#000000';
 let kdStartX, kdStartY;
 
 window.openKdraw = function() {
     const app = document.getElementById('kdraw-app');
+    if (!app) return;
     app.style.display = 'flex';
+    
+    // Показываем сплеш
     document.getElementById('kdraw-splash').style.display = 'flex';
     document.getElementById('kdraw-main').style.display = 'none';
     document.getElementById('kd-new-canvas-modal').style.display = 'none';
     
-    // Анимация загрузки
+    // Прогресс-бар
     const progress = document.getElementById('kdraw-progress');
     const tagline = document.getElementById('kdraw-tagline');
     
-    setTimeout(() => {
+    progress.style.width = '0%';
+    
+    setTimeout(function() {
         tagline.style.opacity = '1';
-        setTimeout(() => { tagline.style.opacity = '0'; }, 1500);
+        setTimeout(function() { tagline.style.opacity = '0'; }, 1500);
     }, 600);
     
-    progress.style.width = '0%';
-    setTimeout(() => { progress.style.width = '45%'; }, 200);
-    setTimeout(() => { progress.style.width = '70%'; }, 600);
-    setTimeout(() => { progress.style.width = '100%'; }, 1100);
+    setTimeout(function() { progress.style.width = '45%'; }, 200);
+    setTimeout(function() { progress.style.width = '70%'; }, 600);
+    setTimeout(function() { progress.style.width = '100%'; }, 1100);
     
-    setTimeout(() => {
+    setTimeout(function() {
         document.getElementById('kdraw-splash').style.opacity = '0';
         document.getElementById('kdraw-splash').style.transition = 'opacity 0.5s';
-        setTimeout(() => {
+        setTimeout(function() {
             document.getElementById('kdraw-splash').style.display = 'none';
             document.getElementById('kdraw-main').style.display = 'flex';
             document.getElementById('kd-new-canvas-modal').style.display = 'flex';
-            initKdrawCanvas();
+            
+            // Инициализация
+            kdCanvas = document.getElementById('kd-canvas');
+            kdCtx = kdCanvas.getContext('2d');
+            kdCtx.fillStyle = '#ffffff';
+            kdCtx.fillRect(0, 0, kdCanvas.width, kdCanvas.height);
+            
             initColorWheel();
-            initKdrawEvents();
+            initKdrawTools();
         }, 500);
     }, 1500);
-}
+};
 
 window.closeKdraw = function() {
     document.getElementById('kdraw-app').style.display = 'none';
-}
-
-function initKdrawCanvas() {
-    kdCanvas = document.getElementById('kd-canvas');
-    kdCtx = kdCanvas.getContext('2d');
-    kdCtx.fillStyle = kdCanvasBg;
-    kdCtx.fillRect(0, 0, kdCanvas.width, kdCanvas.height);
-}
+};
 
 function initColorWheel() {
-    const wheel = document.getElementById('kd-color-wheel');
-    const wctx = wheel.getContext('2d');
-    const centerX = wheel.width / 2;
-    const centerY = wheel.height / 2;
-    const radius = wheel.width / 2;
+    var wheel = document.getElementById('kd-color-wheel');
+    var wctx = wheel.getContext('2d');
+    var centerX = 90;
+    var centerY = 90;
+    var radius = 90;
     
-    for (let angle = 0; angle < 360; angle++) {
-        const startAngle = (angle - 1) * Math.PI / 180;
-        const endAngle = (angle + 1) * Math.PI / 180;
-        
-        for (let r = 0; r < radius; r++) {
-            const saturation = r / radius;
-            const lightness = 0.5;
-            const hue = angle;
-            
+    for (var angle = 0; angle < 360; angle++) {
+        for (var r = 0; r < radius; r++) {
+            var saturation = r / radius;
+            var hue = angle;
             wctx.beginPath();
-            wctx.arc(centerX, centerY, r, startAngle, endAngle);
-            wctx.strokeStyle = `hsl(${hue}, ${saturation * 100}%, ${lightness * 100}%)`;
+            wctx.arc(centerX, centerY, r, (angle - 1) * Math.PI / 180, (angle + 1) * Math.PI / 180);
+            wctx.strokeStyle = 'hsl(' + hue + ', ' + (saturation * 100) + '%, 50%)';
             wctx.lineWidth = 1;
             wctx.stroke();
         }
     }
     
-    wheel.addEventListener('click', (e) => {
-        const rect = wheel.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const imageData = wctx.getImageData(x, y, 1, 1).data;
-        const color = rgbToHex(imageData[0], imageData[1], imageData[2]);
-        setColor(color);
-    });
+    wheel.onclick = function(e) {
+        var rect = wheel.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+        var imageData = wctx.getImageData(x, y, 1, 1).data;
+        var r = imageData[0];
+        var g = imageData[1];
+        var b = imageData[2];
+        kdCurrentColor = '#' + [r, g, b].map(function(x) {
+            return x.toString(16).padStart(2, '0');
+        }).join('');
+        document.getElementById('kd-current-color').style.background = kdCurrentColor;
+        document.getElementById('kd-hex-input').value = kdCurrentColor;
+    };
 }
 
-function rgbToHex(r, g, b) {
-    return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
-}
-
-function setColor(color) {
-    kdCurrentColor = color;
-    document.getElementById('kd-current-color').style.background = color;
-    document.getElementById('kd-hex-input').value = color;
-}
-
-function setColorFromHex(hex) {
-    if (/^#[0-9a-f]{6}$/i.test(hex)) {
-        setColor(hex);
-    }
-}
-
-function updateBrushSize(size) {
-    kdBrushSize = parseInt(size);
-    document.getElementById('kd-size-value').textContent = size;
-}
-
-function updateZoom(zoom) {
-    const canvas = document.getElementById('kd-canvas');
-    canvas.style.transform = `scale(${zoom / 100})`;
-    document.getElementById('kd-zoom-level').textContent = zoom + '%';
-}
-
-function updateLayerOpacity(opacity) {
-    const canvas = document.getElementById('kd-canvas');
-    canvas.style.opacity = opacity / 100;
-    document.getElementById('kd-opacity-value').textContent = opacity + '%';
-}
-
-function toggleLayers() {
-    const list = document.getElementById('kd-layers-list');
-    list.style.display = list.style.display === 'none' ? 'flex' : 'none';
-}
-
-function toggleLayerVisibility(index, eyeIcon) {
-    kdLayers[index].visible = !kdLayers[index].visible;
-    eyeIcon.style.opacity = kdLayers[index].visible ? '0.5' : '0.1';
-}
-
-function initKdrawEvents() {
-    // Tools
-    document.querySelectorAll('#kd-left-toolbar .kd-tool-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#kd-left-toolbar .kd-tool-btn').forEach(b => b.classList.remove('active'));
+function initKdrawTools() {
+    // Кнопка создания холста
+    document.getElementById('kd-create-canvas-btn').onclick = function() {
+        var width = parseInt(document.getElementById('kd-canvas-width').value) || 800;
+        var height = parseInt(document.getElementById('kd-canvas-height').value) || 600;
+        kdCanvas.width = width;
+        kdCanvas.height = height;
+        kdCtx.fillStyle = '#ffffff';
+        kdCtx.fillRect(0, 0, width, height);
+        document.getElementById('kd-new-canvas-modal').style.display = 'none';
+    };
+    
+    // Инструменты
+    var toolButtons = document.querySelectorAll('#kd-left-toolbar .kd-tool-btn');
+    toolButtons.forEach(function(btn) {
+        btn.onclick = function() {
+            toolButtons.forEach(function(b) { b.classList.remove('active'); });
             btn.classList.add('active');
             kdCurrentTool = btn.dataset.tool;
-            
             if (kdCurrentTool === 'shapes') {
-                const submenu = document.getElementById('kd-shapes-submenu');
-                submenu.style.display = submenu.style.display === 'none' ? 'grid' : 'none';
+                document.getElementById('kd-shapes-submenu').style.display = 'grid';
             } else {
                 document.getElementById('kd-shapes-submenu').style.display = 'none';
             }
-        });
+        };
     });
     
-    // Brushes
-    document.querySelectorAll('.kd-brush-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.kd-brush-btn').forEach(b => b.classList.remove('active'));
+    // Кисти
+    var brushButtons = document.querySelectorAll('.kd-brush-btn');
+    brushButtons.forEach(function(btn) {
+        btn.onclick = function() {
+            brushButtons.forEach(function(b) { b.classList.remove('active'); });
             btn.classList.add('active');
             kdCurrentBrush = btn.dataset.brush;
-        });
+        };
     });
     
-    // File menu
-    document.getElementById('kd-file-btn').addEventListener('click', (e) => {
+    // Размер кисти
+    document.getElementById('kd-brush-size').oninput = function() {
+        kdBrushSize = parseInt(this.value);
+        document.getElementById('kd-size-value').textContent = kdBrushSize;
+    };
+    
+    // HEX цвет
+    document.getElementById('kd-hex-input').onchange = function() {
+        var hex = this.value;
+        if (/^#[0-9a-f]{6}$/i.test(hex)) {
+            kdCurrentColor = hex;
+            document.getElementById('kd-current-color').style.background = hex;
+        }
+    };
+    
+    // Файл меню
+    document.getElementById('kd-file-btn').onclick = function(e) {
         e.stopPropagation();
-        const menu = document.getElementById('kd-file-menu');
+        var menu = document.getElementById('kd-file-menu');
         menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-    });
+    };
     
-    document.querySelectorAll('#kd-file-menu .kd-menu-item').forEach(item => {
-        item.addEventListener('click', (e) => {
+    // Кнопки меню
+    var menuItems = document.querySelectorAll('#kd-file-menu .kd-menu-item');
+    menuItems.forEach(function(item) {
+        item.onclick = function(e) {
             e.stopPropagation();
-            const action = item.dataset.action;
-            if (action === 'save') saveKdrawCanvas();
-            else if (action === 'export') exportKdrawCanvas();
+            var action = item.dataset.action;
+            if (action === 'save') {
+                var dataUrl = kdCanvas.toDataURL('image/png');
+                currentDesktopItems.push({
+                    id: Date.now() + Math.random(),
+                    name: 'рисунок.png',
+                    type: 'file',
+                    content: dataUrl
+                });
+                renderDesktop();
+                saveToFirebase();
+                Swal.fire({
+                    title: 'Сохранено!',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    background: '#1a1a2e',
+                    color: '#fff'
+                });
+            } else if (action === 'export') {
+                var link = document.createElement('a');
+                link.download = 'kdraw-export.png';
+                link.href = kdCanvas.toDataURL('image/png');
+                link.click();
+            }
             document.getElementById('kd-file-menu').style.display = 'none';
-        });
+        };
     });
     
-    document.addEventListener('click', () => {
-        document.getElementById('kd-file-menu').style.display = 'none';
-        document.getElementById('kd-shapes-submenu').style.display = 'none';
-    });
-    
-    // New canvas
-    document.getElementById('kd-create-canvas-btn').addEventListener('click', () => {
-        const width = parseInt(document.getElementById('kd-canvas-width').value) || 800;
-        const height = parseInt(document.getElementById('kd-canvas-height').value) || 600;
-        kdCanvas.width = width;
-        kdCanvas.height = height;
-        kdCtx.fillStyle = kdCanvasBg;
-        kdCtx.fillRect(0, 0, width, height);
-        document.getElementById('kd-new-canvas-modal').style.display = 'none';
-    });
-    
-    // Drawing — проверяем что canvas существует
-if (!kdCanvas) return;
-kdCanvas.addEventListener('mousedown', (e) => {
-        const rect = kdCanvas.getBoundingClientRect();
+    // Рисование
+    kdCanvas.onmousedown = function(e) {
+        kdIsDrawing = true;
+        var rect = kdCanvas.getBoundingClientRect();
         kdStartX = e.clientX - rect.left;
         kdStartY = e.clientY - rect.top;
         
@@ -2085,13 +2076,13 @@ kdCanvas.addEventListener('mousedown', (e) => {
             floodFill(Math.floor(kdStartX), Math.floor(kdStartY), kdCurrentColor);
             kdIsDrawing = false;
         }
-    });
+    };
     
-    kdCanvas.addEventListener('mousemove', (e) => {
+    kdCanvas.onmousemove = function(e) {
         if (!kdIsDrawing) return;
-        const rect = kdCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        var rect = kdCanvas.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
         
         kdCtx.lineWidth = kdBrushSize;
         kdCtx.lineCap = 'round';
@@ -2113,45 +2104,68 @@ kdCanvas.addEventListener('mousedown', (e) => {
         
         kdStartX = x;
         kdStartY = y;
+    };
+    
+    kdCanvas.onmouseup = function() { kdIsDrawing = false; };
+    kdCanvas.onmouseleave = function() { kdIsDrawing = false; };
+    
+    // Закрытие меню при клике вне
+    document.addEventListener('click', function() {
+        document.getElementById('kd-file-menu').style.display = 'none';
+        document.getElementById('kd-shapes-submenu').style.display = 'none';
     });
     
-    kdCanvas.addEventListener('mouseup', () => { kdIsDrawing = false; });
-    kdCanvas.addEventListener('mouseleave', () => { kdIsDrawing = false; });
+    // Слайдер зума
+    document.getElementById('kd-zoom-slider').oninput = function() {
+        var zoom = this.value;
+        kdCanvas.style.transform = 'scale(' + (zoom / 100) + ')';
+        document.getElementById('kd-zoom-level').textContent = zoom + '%';
+    };
     
-      // HEX copy
-    const hexInput = document.getElementById('kd-hex-input');
-    if (hexInput) {
-        hexInput.addEventListener('click', function() {
-            this.select();
-            navigator.clipboard.writeText(this.value).then(() => {
-                showToast('Скопировано!');
-            });
-        });
-    }
+    // Прозрачность слоя
+    document.getElementById('kd-opacity-slider').oninput = function() {
+        var opacity = this.value;
+        kdCanvas.style.opacity = opacity / 100;
+        document.getElementById('kd-opacity-value').textContent = opacity + '%';
+    };
+    
+    // Слои
+    document.getElementById('kd-layers-toggle').onclick = function() {
+        var list = document.getElementById('kd-layers-list');
+        list.style.display = list.style.display === 'none' ? 'flex' : 'none';
+    };
 }
 
 function floodFill(x, y, fillColor) {
-    const imageData = kdCtx.getImageData(0, 0, kdCanvas.width, kdCanvas.height);
-    const data = imageData.data;
-    const targetColor = getPixelColor(imageData, x, y);
-    const fillRGB = hexToRgb(fillColor);
+    var imageData = kdCtx.getImageData(0, 0, kdCanvas.width, kdCanvas.height);
+    var data = imageData.data;
+    var targetColor = getPixelColor(imageData, x, y);
+    var fillRGB = hexToRgb(fillColor);
     
-    if (colorsMatch(targetColor, fillRGB)) return;
+    if (targetColor[0] === fillRGB[0] && targetColor[1] === fillRGB[1] && targetColor[2] === fillRGB[2]) return;
     
-    const stack = [[x, y]];
-    const visited = new Set();
+    var stack = [[x, y]];
+    var visited = {};
     
     while (stack.length > 0) {
-        const [cx, cy] = stack.pop();
-        const key = `${cx},${cy}`;
-        if (visited.has(key)) continue;
+        var point = stack.pop();
+        var cx = point[0];
+        var cy = point[1];
+        var key = cx + ',' + cy;
+        
+        if (visited[key]) continue;
         if (cx < 0 || cy < 0 || cx >= kdCanvas.width || cy >= kdCanvas.height) continue;
         
-        const currentColor = getPixelColor(imageData, cx, cy);
-        if (!colorsMatch(currentColor, targetColor)) continue;
+        var currentColor = getPixelColor(imageData, cx, cy);
+        if (currentColor[0] !== targetColor[0] || currentColor[1] !== targetColor[1] || currentColor[2] !== targetColor[2]) continue;
         
-        visited.add(key);
-        setPixelColor(imageData, cx, cy, fillRGB);
+        visited[key] = true;
+        
+        var index = (cy * imageData.width + cx) * 4;
+        data[index] = fillRGB[0];
+        data[index + 1] = fillRGB[1];
+        data[index + 2] = fillRGB[2];
+        data[index + 3] = 255;
         
         stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
     }
@@ -2160,59 +2174,15 @@ function floodFill(x, y, fillColor) {
 }
 
 function getPixelColor(imageData, x, y) {
-    const index = (y * imageData.width + x) * 4;
+    var index = (y * imageData.width + x) * 4;
     return [imageData.data[index], imageData.data[index + 1], imageData.data[index + 2]];
 }
 
-function setPixelColor(imageData, x, y, color) {
-    const index = (y * imageData.width + x) * 4;
-    imageData.data[index] = color[0];
-    imageData.data[index + 1] = color[1];
-    imageData.data[index + 2] = color[2];
-    imageData.data[index + 3] = 255;
-}
-
-function colorsMatch(c1, c2) {
-    return c1[0] === c2[0] && c1[1] === c2[1] && c1[2] === c2[2];
-}
-
 function hexToRgb(hex) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0, 0, 0];
 }
 
-function saveKdrawCanvas() {
-    const dataUrl = kdCanvas.toDataURL('image/png');
-    currentDesktopItems.push({
-        id: Date.now() + Math.random(),
-        name: 'рисунок.png',
-        type: 'file',
-        content: dataUrl
-    });
-    renderDesktop();
-    saveToFirebase();
-    showToast('Сохранено на рабочий стол!');
-}
-
-function exportKdrawCanvas() {
-    const link = document.createElement('a');
-    link.download = 'kdraw-export.png';
-    link.href = kdCanvas.toDataURL('image/png');
-    link.click();
-    showToast('Экспортировано!');
-}
-
-function showToast(message) {
-    Swal.fire({
-        title: message,
-        timer: 1500,
-        showConfirmButton: false,
-        background: '#1a1a2e',
-        color: '#fff',
-        toast: true,
-        position: 'bottom-end'
-    });
-}
 console.log('✅ K-OS полностью обновлён!');
 console.log('✅ Добавлен таскбар с управлением окнами');
 console.log('✅ Закрепление приложений на панели');
