@@ -87,6 +87,11 @@ function showLoading(show) {
 }
 
 function showScreen(screen) {
+    // Автоматически раскрываем на весь экран при показе рабочего стола
+    if (screen === desktop && !document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+    }
+    
     const screens = [authScreen, loginScreen, setupScreen, desktop];
     screens.forEach(s => {
         if (s) s.style.display = 'none';
@@ -178,12 +183,67 @@ function renderTaskbar() {
     const oldTaskbar = document.getElementById('taskbar');
     if (oldTaskbar) oldTaskbar.remove();
     
-    // Показываем таскбар только если есть открытые окна
-    const visibleWindows = openWindows.filter(w => w.style.display !== 'none');
-    if (visibleWindows.length === 0) return;
+    // Показываем таскбар только если есть открытые окна (включая свёрнутые)
+const openOrMinimized = openWindows.filter(w => {
+    // Окно считается активным если оно в DOM и либо видимо, либо свёрнуто
+    return document.body.contains(w);
+});
+// Показываем таскбар если есть открытые окна ИЛИ закреплённые приложения
+if (openOrMinimized.length === 0 && pinnedApps.length === 0) return;
     
     // Создаём новый таскбар
     const taskbar = document.createElement('div');
+    // Сначала добавляем закреплённые приложения
+pinnedApps.forEach(app => {
+    const item = document.createElement('div');
+    item.className = 'taskbar-item';
+    item.title = app.title;
+    item.dataset.pinned = 'true';
+    
+    // Проверяем, открыто ли это приложение
+    const openWindow = openWindows.find(w => {
+        const wTitle = w.querySelector('.window-title')?.textContent?.trim();
+        return wTitle === app.title;
+    });
+    
+    if (openWindow && openWindow.style.display !== 'none') {
+        if (focusedWindow === openWindow) {
+            item.classList.add('focused');
+        } else {
+            item.classList.add('open');
+        }
+    }
+    
+    item.innerHTML = `<div class="taskbar-item-icon"><i class="${app.icon || 'fas fa-file'}"></i></div>`;
+    
+    item.onclick = () => {
+        if (openWindow && openWindows.includes(openWindow)) {
+            if (openWindow.style.display === 'none') {
+                openWindow.style.display = 'flex';
+                focusWindow(openWindow);
+            } else if (focusedWindow === openWindow) {
+                minimizeWindow(openWindow);
+            } else {
+                bringToFront(openWindow);
+                focusWindow(openWindow);
+            }
+        } else {
+            // Запустить приложение
+            launchApp(app);
+        }
+    };
+    
+    item.oncontextmenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showTaskbarContextMenu(e.pageX, e.pageY, { 
+            ...app, 
+            window: openWindow 
+        }, item);
+    };
+    
+    taskbar.appendChild(item);
+});
     taskbar.id = 'taskbar';
     taskbar.className = 'glass-panel';
     taskbar.style.cssText = `
@@ -202,7 +262,7 @@ function renderTaskbar() {
     
     // Добавляем иконки открытых окон
     openWindows.forEach(win => {
-        if (win.style.display === 'none') return;
+    if (!document.body.contains(win)) return;
         
         const title = win.querySelector('.window-title')?.textContent?.trim() || 'Окно';
         const iconClass = win.querySelector('.window-title i')?.className || 'fas fa-file';
@@ -212,21 +272,29 @@ function renderTaskbar() {
         item.title = title;
         
         const isFocused = focusedWindow === win;
-        if (isFocused) {
-            item.classList.add('focused');
-        } else {
-            item.classList.add('open');
-        }
+const isMinimized = win.style.display === 'none';
+
+if (isFocused && !isMinimized) {
+    item.classList.add('focused');
+} else if (!isMinimized) {
+    item.classList.add('open');
+}
         
         item.innerHTML = `<div class="taskbar-item-icon"><i class="${iconClass}"></i></div>`;
         
         item.onclick = () => {
-            if (win.style.display === 'none') {
-                win.style.display = 'flex';
-            }
-            bringToFront(win);
-            focusWindow(win);
-        };
+    if (win.style.display === 'none') {
+        win.style.display = 'flex';
+        focusWindow(win);
+    } else if (focusedWindow === win) {
+        // Если окно в фокусе - сворачиваем
+        minimizeWindow(win);
+    } else {
+        // Если окно не в фокусе - показываем и фокусируем
+        bringToFront(win);
+        focusWindow(win);
+    }
+};
         
         item.oncontextmenu = (e) => {
             e.preventDefault();
@@ -308,22 +376,29 @@ function createTaskbarItem(appData) {
 }
 
 function showTaskbarContextMenu(x, y, appData, item) {
-    const menu = document.getElementById('taskbar-context-menu');
-    if (!menu) return;
+    // Закрываем все меню
+    document.querySelectorAll('.context-menu').forEach(m => m.style.display = 'none');
     
-    const isPinned = pinnedApps.find(a => a.id === appData.id);
+    let menu = document.getElementById('taskbar-context-menu');
+    if (!menu) {
+        menu = document.createElement('div');
+        menu.id = 'taskbar-context-menu';
+        menu.className = 'context-menu glass-panel';
+        document.body.appendChild(menu);
+    }
+    
+    const isPinned = pinnedApps.find(a => a.id === appData.id || a.title === appData.title);
     const isOpen = appData.window && openWindows.includes(appData.window);
     
     menu.innerHTML = `
         <div class="context-item-header">
-            <i class="${appData.icon}"></i>
-            <span>${appData.title}</span>
+            <i class="${appData.icon || 'fas fa-file'}"></i>
+            <span>${appData.title || 'Приложение'}</span>
         </div>
         <div class="context-item" data-action="pin">
             <i class="fas fa-thumbtack"></i> ${isPinned ? 'Открепить от панели' : 'Закрепить на панели'}
         </div>
         ${isOpen ? `<div class="context-item" data-action="close"><i class="fas fa-times"></i> Закрыть</div>` : ''}
-        ${isPinned && !isOpen ? `<div class="context-item" data-action="open"><i class="fas fa-play"></i> Открыть</div>` : ''}
     `;
     
     menu.style.left = Math.min(x, window.innerWidth - 250) + 'px';
@@ -337,15 +412,15 @@ function showTaskbarContextMenu(x, y, appData, item) {
             
             if (action === 'pin') {
                 if (isPinned) {
-                    pinnedApps = pinnedApps.filter(a => a.id !== appData.id);
+                    // Открепить
+                    pinnedApps = pinnedApps.filter(a => a.id !== appData.id && a.title !== appData.title);
                 } else {
+                    // Закрепить
                     pinnedApps.push({
-                        id: appData.id,
+                        id: appData.id || ('pinned-' + Date.now()),
                         title: appData.title,
                         icon: appData.icon,
-                        type: appData.type,
-                        fileId: appData.id,
-                        content: appData.content
+                        type: appData.type || 'window'
                     });
                 }
                 saveToFirebase();
@@ -354,8 +429,6 @@ function showTaskbarContextMenu(x, y, appData, item) {
                 if (appData.window) {
                     closeWindow(appData.window);
                 }
-            } else if (action === 'open') {
-                launchApp(appData);
             }
             
             menu.style.display = 'none';
@@ -1507,7 +1580,16 @@ document.addEventListener('click', (e) => {
         if (taskbarMenu) taskbarMenu.style.display = 'none';
     }
 });
-
+// Открытие пуска по Alt
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Alt' && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+        e.preventDefault();
+        const menu = document.getElementById('start-menu');
+        if (menu) {
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+    }
+});
 // Добавляем контекстное меню таскбара в DOM
 function addTaskbarContextMenu() {
     if (document.getElementById('taskbar-context-menu')) return;
