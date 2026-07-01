@@ -1444,10 +1444,22 @@ desktop?.addEventListener('contextmenu', (e) => {
                             renderDesktop();
                             saveToFirebase();
                         }
-                    } else if (action === 'create-file-txt') {
+                                        } else if (action === 'create-file-txt') {
                         currentDesktopItems.push({ id: Date.now() + Math.random(), name: 'новый.txt', type: 'file', content: '' });
                         renderDesktop();
                         saveToFirebase();
+                    } else if (action === 'create-file-exe') {
+                        const name = prompt('Название приложения:', 'новое_приложение.exe');
+                        if (name) {
+                            currentDesktopItems.push({ 
+                                id: Date.now() + Math.random(), 
+                                name: name.endsWith('.exe') ? name : name + '.exe', 
+                                type: 'file', 
+                                content: '<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { \n            background: #1a1a2e; \n            color: white; \n            font-family: Arial; \n            padding: 20px;\n        }\n    </style>\n</head>\n<body>\n    <h1>Привет, K-OS!</h1>\n    <p>Моё новое приложение</p>\n</body>\n</html>'
+                            });
+                            renderDesktop();
+                            saveToFirebase();
+                        }
                     } else if (action === 'refresh') {
                         renderDesktop();
                     }
@@ -1488,15 +1500,32 @@ document.addEventListener('drop', async (e) => {
                     }
                 }
                 
-                currentDesktopItems.push({
-                    id: Date.now() + Math.random(),
-                    name: file.name,
-                    type: 'file',
-                    content: content,
-                    url: url
-                });
-                renderDesktop();
-                saveToFirebase();
+                              // Для .exe и .ky файлов — читаем как текст
+                if (file.name.endsWith('.exe') || file.name.endsWith('.ky')) {
+                    const textReader = new FileReader();
+                    textReader.onload = (textEvent) => {
+                        currentDesktopItems.push({
+                            id: Date.now() + Math.random(),
+                            name: file.name,
+                            type: 'file',
+                            content: textEvent.target.result,
+                            url: null
+                        });
+                        renderDesktop();
+                        saveToFirebase();
+                    };
+                    textReader.readAsText(file);
+                              } else {
+                    currentDesktopItems.push({
+                        id: Date.now() + Math.random(),
+                        name: file.name,
+                        type: 'file',
+                        content: content,
+                        url: url
+                    });
+                    renderDesktop();
+                    saveToFirebase();
+                }
             } catch (err) {
                 console.error('Upload error:', err);
             }
