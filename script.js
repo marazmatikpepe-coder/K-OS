@@ -1884,93 +1884,96 @@ function addTaskbarContextMenu() {
 document.addEventListener('DOMContentLoaded', () => {
     addTaskbarContextMenu();
 });
-// ===== K-DRAW =====
-let kdCanvas, kdCtx, kdIsDrawing = false, kdCurrentTool = 'brush', kdCurrentBrush = 'round';
+// ===== K-DRAW (упрощённый, как обычное окно) =====
+let kdCanvas, kdCtx, kdIsDrawing = false;
 let kdBrushSize = 5, kdCurrentColor = '#000000';
 let kdStartX, kdStartY;
-let kdHistory = [];
-let kdHistoryIndex = -1;
-let kdLayers = [{ data: null, visible: true, name: 'Слой 1' }];
-let kdActiveLayer = 0;
-let kdMaxHistory = 50;
+let kdHistory = [], kdHistoryIndex = -1;
 
 window.openKdraw = function() {
-    const app = document.getElementById('kdraw-app');
-    if (!app) return;
-    app.style.display = 'flex';
+    // Проверяем, не открыто ли уже
+    const existing = document.querySelector('[data-file-id="kdraw-main"]');
+    if (existing) {
+        focusWindow(existing);
+        return;
+    }
     
-    document.getElementById('kdraw-splash').style.display = 'flex';
-    document.getElementById('kdraw-main').style.display = 'none';
-    document.getElementById('kd-new-canvas-modal').style.display = 'none';
+    const win = createWindow({
+        title: 'K-draw',
+        icon: 'fa-paint-brush',
+        fileId: 'kdraw-main',
+        width: 1100,
+        height: 700,
+        resizable: true,
+        body: `
+            <div style="display:flex;height:100%;gap:0;">
+                <!-- ЛЕВАЯ ПАНЕЛЬ ИНСТРУМЕНТОВ -->
+                <div style="width:48px;display:flex;flex-direction:column;align-items:center;padding:8px 4px;gap:6px;border-right:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
+                    <button class="kd-tool-btn active" data-tool="brush" title="Кисть (B)"><i class="fas fa-paint-brush"></i></button>
+                    <button class="kd-tool-btn" data-tool="eraser" title="Ластик (E)"><i class="fas fa-eraser"></i></button>
+                    <button class="kd-tool-btn" data-tool="fill" title="Заливка (G)"><i class="fas fa-fill-drip"></i></button>
+                    <button class="kd-tool-btn" data-tool="picker" title="Пипетка (I)"><i class="fas fa-eye-dropper"></i></button>
+                    <div style="flex:1;"></div>
+                    <button class="kd-tool-btn" id="kd-undo-btn" title="Отменить (Ctrl+Z)"><i class="fas fa-undo"></i></button>
+                    <button class="kd-tool-btn" id="kd-redo-btn" title="Вернуть (Ctrl+Shift+Z)"><i class="fas fa-redo"></i></button>
+                </div>
+                
+                <!-- ХОЛСТ -->
+                <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+                    <div style="padding:6px 12px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:12px;font-size:11px;opacity:0.5;flex-shrink:0;">
+                        <span>Холст</span>
+                        <span>|</span>
+                        <span>Размер:</span>
+                        <input type="range" id="kd-brush-size" min="1" max="50" value="5" style="width:80px;">
+                        <span id="kd-size-value">5px</span>
+                        <span style="margin-left:auto;">Масштаб:</span>
+                        <span id="kd-zoom-level">100%</span>
+                    </div>
+                    <div style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);" id="kd-canvas-wrapper">
+                        <canvas id="kd-canvas" width="800" height="600" style="background:white;box-shadow:0 4px 20px rgba(0,0,0,0.3);cursor:crosshair;"></canvas>
+                    </div>
+                </div>
+                
+                <!-- ПРАВАЯ ПАНЕЛЬ -->
+                <div style="width:56px;display:flex;flex-direction:column;align-items:center;padding:8px 4px;gap:6px;border-left:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
+                    <div id="kd-current-color" style="width:32px;height:32px;border-radius:8px;background:#000;border:2px solid rgba(255,255,255,0.3);cursor:pointer;flex-shrink:0;" title="Текущий цвет"></div>
+                    <input type="text" id="kd-hex-input" value="#000000" style="width:48px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:4px;color:white;font-size:10px;text-align:center;font-family:monospace;outline:none;">
+                    <div style="font-size:9px;opacity:0.3;margin-top:4px;">ЦВЕТ</div>
+                    <canvas id="kd-color-wheel" width="48" height="48" style="width:48px;height:48px;border-radius:50%;cursor:crosshair;"></canvas>
+                    <button class="kd-tool-btn" id="kd-save-btn" title="Сохранить" style="margin-top:auto;"><i class="fas fa-save"></i></button>
+                </div>
+            </div>
+        `,
+        bodyStyle: 'padding:0;flex:1;overflow:hidden;'
+    });
     
-    const progress = document.getElementById('kdraw-progress');
-    const tagline = document.getElementById('kdraw-tagline');
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+    focusWindow(win);
     
-    progress.style.width = '0%';
-    
+    // Инициализация после вставки в DOM
     setTimeout(() => {
-        tagline.style.opacity = '1';
-        setTimeout(() => { tagline.style.opacity = '0'; }, 1500);
-    }, 600);
-    
-    setTimeout(() => { progress.style.width = '45%'; }, 200);
-    setTimeout(() => { progress.style.width = '70%'; }, 600);
-    setTimeout(() => { progress.style.width = '100%'; }, 1100);
-    
-    setTimeout(() => {
-        document.getElementById('kdraw-splash').style.opacity = '0';
-        document.getElementById('kdraw-splash').style.transition = 'opacity 0.5s';
-        setTimeout(() => {
-            document.getElementById('kdraw-splash').style.display = 'none';
-            document.getElementById('kdraw-main').style.display = 'flex';
-            document.getElementById('kd-new-canvas-modal').style.display = 'flex';
-            
-            kdCanvas = document.getElementById('kd-canvas');
-            kdCtx = kdCanvas.getContext('2d');
-            kdCtx.fillStyle = '#ffffff';
-            kdCtx.fillRect(0, 0, kdCanvas.width, kdCanvas.height);
-            saveHistoryState();
-            
-            initColorWheel();
-            initKdrawTools();
-            updateLayerList();
-            updateCursor();
-        }, 500);
-    }, 1500);
+        kdCanvas = win.querySelector('#kd-canvas');
+        kdCtx = kdCanvas.getContext('2d');
+        kdCtx.fillStyle = '#ffffff';
+        kdCtx.fillRect(0, 0, kdCanvas.width, kdCanvas.height);
+        kdHistory = [];
+        saveKdHistory();
+        
+        initKdColorWheel(win);
+        initKdTools(win);
+    }, 100);
 };
 
-window.closeKdraw = function() {
-    document.getElementById('kdraw-app').style.display = 'none';
-};
-
-// История
-function saveHistoryState() {
+function saveKdHistory() {
     kdHistoryIndex++;
-    if (kdHistoryIndex < kdHistory.length) {
-        kdHistory.length = kdHistoryIndex;
-    }
+    if (kdHistoryIndex < kdHistory.length) kdHistory.length = kdHistoryIndex;
     kdHistory.push(kdCanvas.toDataURL());
-    if (kdHistory.length > kdMaxHistory) {
-        kdHistory.shift();
-        kdHistoryIndex--;
-    }
+    if (kdHistory.length > 30) { kdHistory.shift(); kdHistoryIndex--; }
 }
 
-function undo() {
-    if (kdHistoryIndex > 0) {
-        kdHistoryIndex--;
-        loadHistoryState(kdHistoryIndex);
-    }
-}
-
-function redo() {
-    if (kdHistoryIndex < kdHistory.length - 1) {
-        kdHistoryIndex++;
-        loadHistoryState(kdHistoryIndex);
-    }
-}
-
-function loadHistoryState(index) {
+function loadKdHistory(index) {
     const img = new Image();
     img.onload = () => {
         kdCtx.clearRect(0, 0, kdCanvas.width, kdCanvas.height);
@@ -1979,173 +1982,76 @@ function loadHistoryState(index) {
     img.src = kdHistory[index];
 }
 
-// Цветовой круг
-function initColorWheel() {
-    const wheel = document.getElementById('kd-color-wheel');
+function initKdColorWheel(win) {
+    const wheel = win.querySelector('#kd-color-wheel');
     const wctx = wheel.getContext('2d');
-    const centerX = 90;
-    const centerY = 90;
-    const radius = 85;
+    const cx = 24, cy = 24, r = 24;
     
-    // Рисуем цветовой круг
-    for (let angle = 0; angle < 360; angle += 0.5) {
-        const startAngle = (angle - 1) * Math.PI / 180;
-        const endAngle = (angle + 1) * Math.PI / 180;
-        
-        for (let r = 10; r < radius; r++) {
-            const saturation = r / radius;
+    for (let a = 0; a < 360; a += 0.5) {
+        for (let d = 5; d < r; d++) {
             wctx.beginPath();
-            wctx.arc(centerX, centerY, r, startAngle, endAngle);
-            wctx.strokeStyle = `hsl(${angle}, ${saturation * 100}%, ${50}%)`;
-            wctx.lineWidth = 1.5;
+            wctx.arc(cx, cy, d, (a - 1) * Math.PI / 180, (a + 1) * Math.PI / 180);
+            wctx.strokeStyle = `hsl(${a}, ${(d/r) * 100}%, 50%)`;
+            wctx.lineWidth = 1.2;
             wctx.stroke();
         }
     }
-    
-    // Рисуем кружок текущего цвета
-    const drawColorDot = (x, y) => {
-        // Перерисовываем круг
-        initColorWheel();
-        // Рисуем точку
-        wctx.beginPath();
-        wctx.arc(x, y, 6, 0, Math.PI * 2);
-        wctx.strokeStyle = '#fff';
-        wctx.lineWidth = 2;
-        wctx.stroke();
-        wctx.beginPath();
-        wctx.arc(x, y, 4, 0, Math.PI * 2);
-        wctx.strokeStyle = '#000';
-        wctx.lineWidth = 1;
-        wctx.stroke();
-    };
     
     wheel.onclick = (e) => {
         const rect = wheel.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        
-        const dx = x - centerX;
-        const dy = y - centerY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        if (dist < radius && dist > 10) {
-            const imageData = wctx.getImageData(x, y, 1, 1).data;
-            kdCurrentColor = '#' + [imageData[0], imageData[1], imageData[2]].map(v => v.toString(16).padStart(2, '0')).join('');
-            document.getElementById('kd-current-color').style.background = kdCurrentColor;
-            document.getElementById('kd-hex-input').value = kdCurrentColor;
-            drawColorDot(x, y);
-        }
+        const data = wctx.getImageData(x, y, 1, 1).data;
+        kdCurrentColor = '#' + [data[0], data[1], data[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+        win.querySelector('#kd-current-color').style.background = kdCurrentColor;
+        win.querySelector('#kd-hex-input').value = kdCurrentColor;
     };
 }
 
-// Инструменты
-function initKdrawTools() {
-    // Новый холст
-    document.getElementById('kd-create-canvas-btn').onclick = () => {
-        const width = parseInt(document.getElementById('kd-canvas-width').value) || 800;
-        const height = parseInt(document.getElementById('kd-canvas-height').value) || 600;
-        kdCanvas.width = width;
-        kdCanvas.height = height;
-        kdCtx.fillStyle = '#ffffff';
-        kdCtx.fillRect(0, 0, width, height);
-        kdHistory = [];
-        saveHistoryState();
-        document.getElementById('kd-new-canvas-modal').style.display = 'none';
-    };
-    
+function initKdTools(win) {
     // Инструменты
-    document.querySelectorAll('#kd-left-toolbar .kd-tool-btn').forEach(btn => {
+    win.querySelectorAll('.kd-tool-btn[data-tool]').forEach(btn => {
         btn.onclick = () => {
-            document.querySelectorAll('#kd-left-toolbar .kd-tool-btn').forEach(b => b.classList.remove('active'));
+            win.querySelectorAll('.kd-tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            kdCurrentTool = btn.dataset.tool;
-            
-            if (kdCurrentTool === 'shapes') {
-                document.getElementById('kd-shapes-submenu').style.display = 'grid';
-            } else {
-                document.getElementById('kd-shapes-submenu').style.display = 'none';
-            }
-            updateCursor();
-        };
-    });
-    
-    // Фигуры
-    document.querySelectorAll('.kd-shape-btn').forEach(btn => {
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            kdCurrentTool = 'shape';
-            kdCurrentShape = btn.dataset.shape;
-            document.getElementById('kd-shapes-submenu').style.display = 'none';
-        };
-    });
-    
-    // Кисти
-    document.querySelectorAll('.kd-brush-btn').forEach(btn => {
-        btn.onclick = () => {
-            document.querySelectorAll('.kd-brush-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            kdCurrentBrush = btn.dataset.brush;
         };
     });
     
     // Размер кисти
-    document.getElementById('kd-brush-size').oninput = function() {
+    win.querySelector('#kd-brush-size').oninput = function() {
         kdBrushSize = parseInt(this.value);
-        document.getElementById('kd-size-value').textContent = kdBrushSize;
-        updateCursor();
+        win.querySelector('#kd-size-value').textContent = kdBrushSize + 'px';
     };
     
     // HEX
-    document.getElementById('kd-hex-input').onchange = function() {
+    win.querySelector('#kd-hex-input').onchange = function() {
         if (/^#[0-9a-f]{6}$/i.test(this.value)) {
             kdCurrentColor = this.value;
-            document.getElementById('kd-current-color').style.background = kdCurrentColor;
+            win.querySelector('#kd-current-color').style.background = kdCurrentColor;
         }
     };
     
-    // Копирование HEX
-    document.getElementById('kd-hex-input').onclick = function() {
-        this.select();
-        navigator.clipboard.writeText(this.value).then(() => {
-            const toast = document.createElement('div');
-            toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:rgba(0,0,0,0.8);color:white;padding:8px 16px;border-radius:8px;font-size:13px;z-index:99999;';
-            toast.textContent = 'Скопировано!';
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 1500);
+    // Сохранить
+    win.querySelector('#kd-save-btn').onclick = () => {
+        const dataUrl = kdCanvas.toDataURL('image/png');
+        currentDesktopItems.push({
+            id: Date.now() + Math.random(),
+            name: 'рисунок_' + Date.now() + '.png',
+            type: 'file',
+            content: dataUrl
         });
+        renderDesktop();
+        saveToFirebase();
+        Swal.fire({ title: 'Сохранено!', timer: 1200, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
     };
     
-    // Файл
-    document.getElementById('kd-file-btn').onclick = (e) => {
-        e.stopPropagation();
-        const menu = document.getElementById('kd-file-menu');
-        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    // Undo/Redo
+    win.querySelector('#kd-undo-btn').onclick = () => {
+        if (kdHistoryIndex > 0) { kdHistoryIndex--; loadKdHistory(kdHistoryIndex); }
     };
-    
-    document.querySelectorAll('#kd-file-menu .kd-menu-item').forEach(item => {
-        item.onclick = (e) => {
-            e.stopPropagation();
-            const action = item.dataset.action;
-            if (action === 'save') {
-                const dataUrl = kdCanvas.toDataURL('image/png');
-                currentDesktopItems.push({
-                    id: Date.now() + Math.random(),
-                    name: 'рисунок_' + new Date().toLocaleTimeString().replace(/:/g, '-') + '.png',
-                    type: 'file',
-                    content: dataUrl
-                });
-                renderDesktop();
-                saveToFirebase();
-                Swal.fire({ title: 'Сохранено!', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
-            } else if (action === 'export') {
-                const link = document.createElement('a');
-                link.download = 'kdraw-export.png';
-                link.href = kdCanvas.toDataURL('image/png');
-                link.click();
-            }
-            document.getElementById('kd-file-menu').style.display = 'none';
-        };
-    });
+    win.querySelector('#kd-redo-btn').onclick = () => {
+        if (kdHistoryIndex < kdHistory.length - 1) { kdHistoryIndex++; loadKdHistory(kdHistoryIndex); }
+    };
     
     // Рисование
     kdCanvas.onmousedown = (e) => {
@@ -2154,15 +2060,48 @@ function initKdrawTools() {
         kdStartX = e.clientX - rect.left;
         kdStartY = e.clientY - rect.top;
         
-        if (kdCurrentTool === 'fill') {
-            floodFill(Math.floor(kdStartX), Math.floor(kdStartY), kdCurrentColor);
+        const activeTool = win.querySelector('.kd-tool-btn.active')?.dataset?.tool || 'brush';
+        
+        if (activeTool === 'fill') {
+            const imageData = kdCtx.getImageData(0, 0, kdCanvas.width, kdCanvas.height);
+            const idx = (Math.floor(kdStartY) * kdCanvas.width + Math.floor(kdStartX)) * 4;
+            const targetR = imageData.data[idx];
+            const targetG = imageData.data[idx + 1];
+            const targetB = imageData.data[idx + 2];
+            const fillR = parseInt(kdCurrentColor.slice(1, 3), 16);
+            const fillG = parseInt(kdCurrentColor.slice(3, 5), 16);
+            const fillB = parseInt(kdCurrentColor.slice(5, 7), 16);
+            
+            if (targetR === fillR && targetG === fillG && targetB === fillB) { kdIsDrawing = false; return; }
+            
+            const stack = [[Math.floor(kdStartX), Math.floor(kdStartY)]];
+            const visited = new Set();
+            
+            while (stack.length > 0) {
+                const [cx, cy] = stack.pop();
+                const key = cx + ',' + cy;
+                if (visited.has(key)) continue;
+                if (cx < 0 || cy < 0 || cx >= kdCanvas.width || cy >= kdCanvas.height) continue;
+                
+                const i = (cy * kdCanvas.width + cx) * 4;
+                if (imageData.data[i] !== targetR || imageData.data[i + 1] !== targetG || imageData.data[i + 2] !== targetB) continue;
+                
+                visited.add(key);
+                imageData.data[i] = fillR;
+                imageData.data[i + 1] = fillG;
+                imageData.data[i + 2] = fillB;
+                
+                stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+            }
+            
+            kdCtx.putImageData(imageData, 0, 0);
+            saveKdHistory();
             kdIsDrawing = false;
-            saveHistoryState();
-        } else if (kdCurrentTool === 'picker') {
-            const imageData = kdCtx.getImageData(kdStartX, kdStartY, 1, 1).data;
-            kdCurrentColor = '#' + [imageData[0], imageData[1], imageData[2]].map(v => v.toString(16).padStart(2, '0')).join('');
-            document.getElementById('kd-current-color').style.background = kdCurrentColor;
-            document.getElementById('kd-hex-input').value = kdCurrentColor;
+        } else if (activeTool === 'picker') {
+            const data = kdCtx.getImageData(Math.floor(kdStartX), Math.floor(kdStartY), 1, 1).data;
+            kdCurrentColor = '#' + [data[0], data[1], data[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+            win.querySelector('#kd-current-color').style.background = kdCurrentColor;
+            win.querySelector('#kd-hex-input').value = kdCurrentColor;
             kdIsDrawing = false;
         }
     };
@@ -2172,192 +2111,72 @@ function initKdrawTools() {
         const rect = kdCanvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
+        const activeTool = win.querySelector('.kd-tool-btn.active')?.dataset?.tool || 'brush';
         
         kdCtx.lineWidth = kdBrushSize;
         kdCtx.lineCap = 'round';
         kdCtx.lineJoin = 'round';
         
-        if (kdCurrentTool === 'brush') {
+        if (activeTool === 'brush') {
             kdCtx.strokeStyle = kdCurrentColor;
             kdCtx.globalCompositeOperation = 'source-over';
-            kdCtx.beginPath();
-            kdCtx.moveTo(kdStartX, kdStartY);
-            kdCtx.lineTo(x, y);
-            kdCtx.stroke();
-        } else if (kdCurrentTool === 'eraser') {
+        } else if (activeTool === 'eraser') {
             kdCtx.globalCompositeOperation = 'destination-out';
-            kdCtx.beginPath();
-            kdCtx.arc(x, y, kdBrushSize / 2, 0, Math.PI * 2);
-            kdCtx.fill();
+        } else {
+            return;
         }
+        
+        kdCtx.beginPath();
+        kdCtx.moveTo(kdStartX, kdStartY);
+        kdCtx.lineTo(x, y);
+        kdCtx.stroke();
         
         kdStartX = x;
         kdStartY = y;
     };
     
     kdCanvas.onmouseup = () => {
-        if (kdIsDrawing) {
-            saveHistoryState();
-        }
+        if (kdIsDrawing) saveKdHistory();
         kdIsDrawing = false;
     };
     kdCanvas.onmouseleave = () => {
-        if (kdIsDrawing) {
-            saveHistoryState();
-        }
+        if (kdIsDrawing) saveKdHistory();
         kdIsDrawing = false;
     };
     
-    // Зум колесиком
-    kdCanvas.parentElement.onwheel = (e) => {
-        e.preventDefault();
-        const slider = document.getElementById('kd-zoom-slider');
-        let zoom = parseInt(slider.value);
-        zoom += e.deltaY > 0 ? -10 : 10;
-        zoom = Math.max(10, Math.min(300, zoom));
-        slider.value = zoom;
-        kdCanvas.style.transform = 'scale(' + (zoom / 100) + ')';
-        document.getElementById('kd-zoom-level').textContent = zoom + '%';
-    };
-    
-    // Слайдер зума
-    document.getElementById('kd-zoom-slider').oninput = function() {
-        kdCanvas.style.transform = 'scale(' + (this.value / 100) + ')';
-        document.getElementById('kd-zoom-level').textContent = this.value + '%';
-    };
-    
-    // Прозрачность
-    document.getElementById('kd-opacity-slider').oninput = function() {
-        kdCanvas.style.opacity = this.value / 100;
-        document.getElementById('kd-opacity-value').textContent = this.value + '%';
-    };
-    
-    // Слои
-    document.getElementById('kd-layers-toggle').onclick = () => {
-        const list = document.getElementById('kd-layers-list');
-        list.style.display = list.style.display === 'none' ? 'flex' : 'none';
-    };
-    
     // Ctrl+Z / Ctrl+Shift+Z
-    document.addEventListener('keydown', (e) => {
-        if (document.getElementById('kdraw-app').style.display !== 'flex') return;
+    win.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
             e.preventDefault();
-            undo();
+            if (kdHistoryIndex > 0) { kdHistoryIndex--; loadKdHistory(kdHistoryIndex); }
         }
         if (e.ctrlKey && e.key === 'z' && e.shiftKey) {
             e.preventDefault();
-            redo();
+            if (kdHistoryIndex < kdHistory.length - 1) { kdHistoryIndex++; loadKdHistory(kdHistoryIndex); }
         }
     });
     
-    // Закрытие меню
-    document.addEventListener('click', () => {
-        document.getElementById('kd-file-menu').style.display = 'none';
-        document.getElementById('kd-shapes-submenu').style.display = 'none';
-    });
-    
-    updateCursor();
-}
-
-function updateCursor() {
-    if (!kdCanvas) return;
-    if (kdCurrentTool === 'brush' || kdCurrentTool === 'eraser') {
-        const size = Math.max(kdBrushSize, 4);
-        const svg = `<svg width="${size + 4}" height="${size + 4}" xmlns="http://www.w3.org/2000/svg"><circle cx="${size/2 + 2}" cy="${size/2 + 2}" r="${size/2}" fill="none" stroke="white" stroke-width="1.5"/><circle cx="${size/2 + 2}" cy="${size/2 + 2}" r="1" fill="white"/></svg>`;
-        const encoded = btoa(svg);
-        kdCanvas.style.cursor = `url('data:image/svg+xml;base64,${encoded}') ${size/2 + 2} ${size/2 + 2}, crosshair`;
-    } else if (kdCurrentTool === 'picker') {
-        kdCanvas.style.cursor = 'crosshair';
-    } else if (kdCurrentTool === 'fill') {
-        kdCanvas.style.cursor = 'cell';
-    } else {
-        kdCanvas.style.cursor = 'default';
-    }
-}
-
-function updateLayerList() {
-    const list = document.getElementById('kd-layers-list');
-    list.innerHTML = '';
-    
-    kdLayers.forEach((layer, index) => {
-        const div = document.createElement('div');
-        div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,0.04);border-radius:8px;cursor:pointer;margin-bottom:4px;';
-        if (index === kdActiveLayer) {
-            div.style.background = 'rgba(102,126,234,0.3)';
+    // Горячие клавиши инструментов
+    win.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        const key = e.key.toLowerCase();
+        const tools = { 'b': 'brush', 'e': 'eraser', 'g': 'fill', 'i': 'picker' };
+        if (tools[key]) {
+            win.querySelectorAll('.kd-tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+            const btn = win.querySelector(`.kd-tool-btn[data-tool="${tools[key]}"]`);
+            if (btn) btn.classList.add('active');
         }
-        
-        div.innerHTML = `
-            <div style="width:28px;height:28px;background:white;border-radius:4px;border:1px solid rgba(255,255,255,0.2);"></div>
-            <span style="font-size:11px;">${layer.name}</span>
-            <i class="fas fa-eye" style="margin-left:auto;font-size:10px;opacity:${layer.visible ? '0.5' : '0.1'};cursor:pointer;" onclick="event.stopPropagation(); kdLayers[${index}].visible = !kdLayers[${index}].visible; updateLayerList();"></i>
-        `;
-        
-        div.onclick = () => {
-            kdActiveLayer = index;
-            updateLayerList();
-        };
-        
-        list.appendChild(div);
     });
     
-    // Кнопка добавить слой
-    const addBtn = document.createElement('button');
-    addBtn.style.cssText = 'width:100%;padding:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:rgba(255,255,255,0.5);cursor:pointer;font-size:11px;margin-top:4px;';
-    addBtn.textContent = '+ Новый слой';
-    addBtn.onclick = () => {
-        kdLayers.push({ data: null, visible: true, name: 'Слой ' + (kdLayers.length + 1) });
-        kdActiveLayer = kdLayers.length - 1;
-        updateLayerList();
-    };
-    list.appendChild(addBtn);
-}
-
-function floodFill(x, y, fillColor) {
-    const imageData = kdCtx.getImageData(0, 0, kdCanvas.width, kdCanvas.height);
-    const data = imageData.data;
-    const targetColor = getPixelColor(imageData, x, y);
-    const fillRGB = hexToRgb(fillColor);
-    
-    if (targetColor[0] === fillRGB[0] && targetColor[1] === fillRGB[1] && targetColor[2] === fillRGB[2]) return;
-    
-    const stack = [[x, y]];
-    const visited = {};
-    const width = kdCanvas.width;
-    const height = kdCanvas.height;
-    
-    while (stack.length > 0) {
-        const [cx, cy] = stack.pop();
-        const key = cx + ',' + cy;
-        
-        if (visited[key]) continue;
-        if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue;
-        
-        const currentColor = getPixelColor(imageData, cx, cy);
-        if (currentColor[0] !== targetColor[0] || currentColor[1] !== targetColor[1] || currentColor[2] !== targetColor[2]) continue;
-        
-        visited[key] = true;
-        
-        const index = (cy * width + cx) * 4;
-        data[index] = fillRGB[0];
-        data[index + 1] = fillRGB[1];
-        data[index + 2] = fillRGB[2];
-        data[index + 3] = 255;
-        
-        stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
-    }
-    
-    kdCtx.putImageData(imageData, 0, 0);
-}
-
-function getPixelColor(imageData, x, y) {
-    const index = (y * imageData.width + x) * 4;
-    return [imageData.data[index], imageData.data[index + 1], imageData.data[index + 2]];
-}
-
-function hexToRgb(hex) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0, 0, 0];
+    // Зум колесиком
+    win.querySelector('#kd-canvas-wrapper').addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const currentZoom = parseInt(win.querySelector('#kd-zoom-level').textContent) || 100;
+        let newZoom = currentZoom + (e.deltaY > 0 ? -15 : 15);
+        newZoom = Math.max(20, Math.min(500, newZoom));
+        kdCanvas.style.transform = 'scale(' + (newZoom / 100) + ')';
+        win.querySelector('#kd-zoom-level').textContent = newZoom + '%';
+    });
 }
 
 console.log('✅ K-OS полностью обновлён!');
