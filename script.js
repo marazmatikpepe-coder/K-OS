@@ -2346,7 +2346,117 @@ function floodFill(x, y, fillColor) {
     }
     kdCtx.putImageData(imageData, 0, 0);
 }
+// ===== КОНСТРУКТОР ПРИЛОЖЕНИЙ =====
+function openAppBuilder2() {
+    document.getElementById('app-builder-window').style.display = 'flex';
+}
 
+function testApp() {
+    const url = document.getElementById('builder-app-url').value.trim();
+    const code = document.getElementById('builder-html-code').value.trim();
+    const iframe = document.getElementById('builder-preview');
+    
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+        iframe.src = url;
+    } else if (code) {
+        // Добавляем API для сохранения в Web-OS
+        const apiCode = `
+<script>
+window.KOS = {
+    saveFile: function(name, dataUrl) {
+        window.parent.postMessage({ action: 'saveFile', name: name, dataUrl: dataUrl }, '*');
+    },
+    saveToDesktop: function(name, dataUrl) {
+        window.parent.postMessage({ action: 'saveToDesktop', name: name, dataUrl: dataUrl }, '*');
+    },
+    getFiles: function() {
+        return new Promise(function(resolve) {
+            window.parent.postMessage({ action: 'getFiles' }, '*');
+            window.addEventListener('message', function handler(e) {
+                if (e.data.action === 'filesList') {
+                    window.removeEventListener('message', handler);
+                    resolve(e.data.files);
+                }
+            });
+        });
+    }
+};
+<\/script>
+${code}`;
+        iframe.srcdoc = apiCode;
+    }
+}
+
+function saveAppToDesktop() {
+    const name = document.getElementById('builder-app-name').value.trim() || 'мое_приложение';
+    const code = document.getElementById('builder-html-code').value.trim();
+    const url = document.getElementById('builder-app-url').value.trim();
+    
+    const content = url || code;
+    if (!content) return alert('Введи URL или HTML код');
+    
+    currentDesktopItems.push({
+        id: Date.now() + Math.random(),
+        name: name + '.exe',
+        type: 'file',
+        content: content
+    });
+    renderDesktop();
+    saveToFirebase();
+    Swal.fire({ title: 'Сохранено!', timer: 1200, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+}
+
+function installApp() {
+    const name = document.getElementById('builder-app-name').value.trim() || 'мое_приложение';
+    const code = document.getElementById('builder-html-code').value.trim();
+    const url = document.getElementById('builder-app-url').value.trim();
+    const content = url || code;
+    if (!content) return alert('Введи URL или HTML код');
+    
+    pinnedApps.push({
+        id: 'app-' + Date.now(),
+        title: name,
+        icon: 'fa-window-maximize',
+        type: 'webapp',
+        content: content
+    });
+    saveToFirebase();
+    renderTaskbar();
+    Swal.fire({ title: 'Установлено!', text: 'Приложение в таскбаре', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+}
+
+// Обработчик сообщений от iframe (API сохранения)
+window.addEventListener('message', (e) => {
+    if (e.data.action === 'saveFile' || e.data.action === 'saveToDesktop') {
+        const { name, dataUrl } = e.data;
+        currentDesktopItems.push({
+            id: Date.now() + Math.random(),
+            name: name || 'файл.png',
+            type: 'file',
+            content: dataUrl
+        });
+        renderDesktop();
+        saveToFirebase();
+        Swal.fire({ title: 'Файл сохранён!', timer: 1200, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
+    }
+    
+    if (e.data.action === 'getFiles') {
+        e.source.postMessage({
+            action: 'filesList',
+            files: currentDesktopItems.map(f => ({ name: f.name, type: f.type, id: f.id }))
+        }, '*');
+    }
+});
+
+// Обновляем launchApp для webapp
+const origLaunchApp = launchApp;
+launchApp = function(appData) {
+    if (appData.type === 'webapp' && appData.content) {
+        openAppWindow({ name: appData.title + '.exe', content: appData.content, id: appData.id });
+        return;
+    }
+    origLaunchApp(appData);
+};
 console.log('✅ K-OS полностью обновлён!');
 console.log('✅ Добавлен таскбар с управлением окнами');
 console.log('✅ Закрепление приложений на панели');
