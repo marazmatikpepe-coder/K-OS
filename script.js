@@ -40,6 +40,32 @@ const loginScreen = document.getElementById('login-screen');
 const setupScreen = document.getElementById('setup-screen');
 const desktop = document.getElementById('desktop');
 
+// ===== ЗАПРЕТ ВЫДЕЛЕНИЯ И ПКМ =====
+document.addEventListener('contextmenu', (e) => {
+    // Разрешаем ПКМ только на рабочем столе и иконках
+    if (e.target.closest('#desktop') || e.target.closest('#desktop-icons') || e.target.closest('.desktop-icon')) {
+        return;
+    }
+    // Запрещаем ПКМ на картинках, логотипах и т.д.
+    e.preventDefault();
+});
+
+// Запрет выделения текста и картинок
+document.addEventListener('selectstart', (e) => {
+    // Разрешаем выделение только в полях ввода и текстовых областях
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.closest('.notepad-textarea')) {
+        return;
+    }
+    e.preventDefault();
+});
+
+// Запрет перетаскивания картинок (чтобы не открывались в новой вкладке)
+document.addEventListener('dragstart', (e) => {
+    if (e.target.tagName === 'IMG' && !e.target.closest('.desktop-icon')) {
+        e.preventDefault();
+    }
+});
+
 // ===== АВТОСОХРАНЕНИЕ =====
 let autoSaveInterval = null;
 
@@ -116,6 +142,7 @@ function applyConfig() {
     }
     
     document.body.classList.toggle('light-theme', systemConfig.theme === 'light');
+    // Применяем настройки жидкого стекла
     document.documentElement.style.setProperty('--glass-opacity', systemConfig.glassOpacity || 0.6);
     document.documentElement.style.setProperty('--glass-blur', (systemConfig.glassBlur || 20) + 'px');
     document.documentElement.style.setProperty('--glass-border', systemConfig.glassBorder || 0.1);
@@ -137,6 +164,7 @@ function renderDesktop() {
     const trashIcon = document.createElement('div');
     trashIcon.className = 'desktop-icon trash-icon';
     trashIcon.setAttribute('data-id', 'trash');
+    trashIcon.setAttribute('draggable', 'true');
     trashIcon.innerHTML = `
         <div class="icon-img"><i class="fas fa-trash-alt"></i></div>
         <div class="icon-label">Корзина</div>
@@ -144,8 +172,22 @@ function renderDesktop() {
     trashIcon.onclick = () => openTrash();
     trashIcon.oncontextmenu = (e) => {
         e.preventDefault();
+        e.stopPropagation();
         showTrashContext(e.pageX, e.pageY);
     };
+    
+    // Делаем корзину перетаскиваемой
+    trashIcon.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', 'trash');
+        dragData = { id: 'trash', isTrash: true };
+        trashIcon.style.opacity = '0.5';
+    });
+    
+    trashIcon.addEventListener('dragend', (e) => {
+        trashIcon.style.opacity = '1';
+        dragData = null;
+    });
+    
     container.appendChild(trashIcon);
 }
 
@@ -189,16 +231,19 @@ function createDesktopIcon(item) {
     
     icon.oncontextmenu = (e) => {
         e.preventDefault();
+        e.stopPropagation();
         showFileContextMenu(e.pageX, e.pageY, item);
     };
     
     icon.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('text/plain', item.id);
+        dragData = { id: item.id, isTrash: false };
         icon.style.opacity = '0.5';
     });
     
     icon.addEventListener('dragend', () => {
         icon.style.opacity = '1';
+        dragData = null;
     });
     
     return icon;
@@ -237,8 +282,13 @@ function openImageViewer(item) {
         fileId: item.id,
         width: 600,
         height: 'auto',
-        body: `<img src="${item.content}" alt="${item.name}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 0 0 20px 20px; display: block;">`,
+        body: `<img src="${item.content}" alt="${item.name}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 0 0 20px 20px; display: block; -webkit-user-drag: none; user-select: none; pointer-events: none;" draggable="false">`,
         bodyStyle: 'padding: 0; display: flex; align-items: center; justify-content: center; min-height: 300px; background: rgba(0,0,0,0.3); border-radius: 0 0 20px 20px;'
+    });
+    
+    // Запрещаем ПКМ на просмотрщике изображений
+    win.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
     });
     
     document.body.appendChild(win);
@@ -271,7 +321,7 @@ function openNotepad(item) {
                     </div>
                 </div>
             </div>
-            <textarea class="notepad-textarea" placeholder="Введите текст..." style="flex: 1; width: 100%; padding: 16px 20px; background: rgba(0,0,0,0.15); color: #e0e0e0; border: none; resize: none; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6; outline: none;">${item.content || ''}</textarea>
+            <textarea class="notepad-textarea" placeholder="Введите текст..." style="flex: 1; width: 100%; padding: 16px 20px; background: rgba(0,0,0,0.15); color: #e0e0e0; border: none; resize: none; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6; outline: none; user-select: text;">${item.content || ''}</textarea>
             <div class="notepad-status">
                 <span>Строк: ${(item.content || '').split('\n').length}</span>
                 <span>${item.name}</span>
@@ -735,6 +785,13 @@ function showFileContextMenu(x, y, item) {
     const menu = document.getElementById('file-context-menu');
     if (!menu) return;
     
+    // Восстанавливаем стандартные пункты меню для файла/папки
+    menu.innerHTML = `
+        <div class="context-item" data-action="open"><i class="fas fa-folder-open"></i> Открыть</div>
+        <div class="context-item" data-action="rename"><i class="fas fa-pen"></i> Переименовать</div>
+        <div class="context-item" data-action="delete"><i class="fas fa-trash"></i> Удалить</div>
+    `;
+    
     menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
     menu.style.top = Math.min(y, window.innerHeight - 180) + 'px';
     menu.style.display = 'flex';
@@ -928,6 +985,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const val = glassSlider.value / 100;
             systemConfig.glassOpacity = val;
             document.documentElement.style.setProperty('--glass-opacity', val);
+            // Применяем ко всем glass-panel элементам
+            document.querySelectorAll('.glass-panel').forEach(panel => {
+                panel.style.background = `rgba(30, 30, 40, ${val})`;
+            });
         };
     }
     
@@ -1111,11 +1172,17 @@ document.addEventListener('dragstart', (e) => {
     const icon = e.target.closest('.desktop-icon');
     if (!icon) return;
     const id = icon.dataset.id;
-    if (id === 'trash') return;
+    if (id === 'trash') {
+        dragData = { id: 'trash', isTrash: true };
+        e.dataTransfer.setData('text/plain', 'trash');
+        icon.style.opacity = '0.5';
+        return;
+    }
     
     dragData = {
         id: id,
-        element: icon
+        element: icon,
+        isTrash: false
     };
     e.dataTransfer.setData('text/plain', id);
     icon.style.opacity = '0.5';
@@ -1139,6 +1206,21 @@ desktopIcons?.addEventListener('drop', (e) => {
     
     const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
     if (!id) return;
+    
+    // Если перетаскивают корзину - обновляем только позицию
+    if (id === 'trash' || (dragData && dragData.isTrash)) {
+        const trashIcon = document.querySelector('.trash-icon');
+        if (trashIcon) {
+            const rect = desktopIcons.getBoundingClientRect();
+            const x = e.clientX - rect.left - 42;
+            const y = e.clientY - rect.top - 42;
+            trashIcon.style.position = 'absolute';
+            trashIcon.style.left = x + 'px';
+            trashIcon.style.top = y + 'px';
+        }
+        dragData = null;
+        return;
+    }
     
     const item = currentDesktopItems.find(i => i.id == id);
     if (!item) return;
@@ -1173,5 +1255,16 @@ desktopIcons?.addEventListener('drop', (e) => {
     dragData = null;
 });
 
+// Закрытие контекстных меню при клике в другом месте
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.context-menu')) {
+        document.getElementById('context-menu').style.display = 'none';
+        document.getElementById('file-context-menu').style.display = 'none';
+    }
+});
+
 console.log('✅ K-OS полностью обновлён!');
 console.log('✅ Исправлены: движение окон, кнопки, контекстное меню, корзина');
+console.log('✅ Запрещено выделение и ПКМ на изображениях/логотипах');
+console.log('✅ Корзина теперь перетаскивается');
+console.log('✅ Жидкое стекло применяется корректно');
