@@ -46,7 +46,7 @@ const desktop = document.getElementById('desktop');
 // ===== ЗАПРЕТ ВЫДЕЛЕНИЯ И ПКМ =====
 document.addEventListener('contextmenu', (e) => {
     // Разрешаем ПКМ только на рабочем столе, иконках и таскбаре
-    if (e.target.closest('#desktop') || e.target.closest('#desktop-icons') || e.target.closest('.desktop-icon') || e.target.closest('.taskbar-item')) {
+    if ((e.target.closest && e.target.closest('#desktop')) || (e.target.closest && e.target.closest('#desktop-icons')) || (e.target.closest && e.target.closest('.desktop-icon')) || (e.target.closest && e.target.closest('.taskbar-item'))) {
         return;
     }
     // Запрещаем ПКМ на картинках, логотипах и т.д.
@@ -56,7 +56,7 @@ document.addEventListener('contextmenu', (e) => {
 // Запрет выделения текста и картинок
 document.addEventListener('selectstart', (e) => {
     // Разрешаем выделение только в полях ввода и текстовых областях
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.closest('.notepad-textarea')) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || (e.target.closest && e.target.closest('.notepad-textarea'))) {
         return;
     }
     e.preventDefault();
@@ -88,10 +88,6 @@ function showLoading(show) {
 
 function showScreen(screen) {
     // Автоматически раскрываем на весь экран при показе рабочего стола
-    if (screen === desktop && !document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-    }
-    
     const screens = [authScreen, loginScreen, setupScreen, desktop];
     screens.forEach(s => {
         if (s) s.style.display = 'none';
@@ -1896,7 +1892,7 @@ let kdActiveLayer = 0;
 let kdHistory = [];
 let kdStartX, kdStartY;
 
-function openKdraw() {
+window.openKdraw = function() {
     const app = document.getElementById('kdraw-app');
     app.style.display = 'flex';
     document.getElementById('kdraw-splash').style.display = 'flex';
@@ -1931,7 +1927,7 @@ function openKdraw() {
     }, 1500);
 }
 
-function closeKdraw() {
+window.closeKdraw = function() {
     document.getElementById('kdraw-app').style.display = 'none';
 }
 
