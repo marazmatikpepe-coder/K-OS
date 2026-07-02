@@ -11,6 +11,59 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const IMGBB_KEY = "cc09691527f520d75134d23712471d2c";
+// Кеш для быстрой загрузки
+const imageCache = new Map();
+
+// Загрузка изображения с кешированием
+async function loadImage(url) {
+    if (imageCache.has(url)) return imageCache.get(url);
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            imageCache.set(url, img);
+            resolve(img);
+        };
+        img.src = url;
+    });
+}
+
+// Сохранение картинки в imgbb и локальный кеш
+async function uploadToImgbb(dataUrl, type) {
+    // Сначала сохраняем локально для мгновенного отображения
+    const localKey = type + '_' + currentUser.uid;
+    localStorage.setItem(localKey, dataUrl);
+    
+    // Параллельно загружаем в imgbb
+    try {
+        const base64 = dataUrl.split(',')[1];
+        const formData = new FormData();
+        formData.append('image', base64);
+        formData.append('key', IMGBB_KEY);
+        const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+        const json = await res.json();
+        if (json.success) {
+            return json.data.url;
+        }
+    } catch(e) {
+        console.log('ImgBB upload failed, using local storage');
+    }
+    return dataUrl; // fallback
+}
+
+// Загрузка из локального хранилища при старте
+function loadFromLocalStorage() {
+    if (!currentUser) return;
+    const avatar = localStorage.getItem('avatar_' + currentUser.uid);
+    const wallpaper = localStorage.getItem('wallpaper_' + currentUser.uid);
+    
+    if (avatar) {
+        systemConfig.avatar = avatar;
+    }
+    if (wallpaper) {
+        systemConfig.wallpaper = wallpaper;
+        applyConfig();
+    }
+}
 
 let currentUser = null;
 let currentDesktopItems = [];
@@ -156,7 +209,10 @@ async function loadFromFirebase() {
 
 function applyConfig() {
     if (desktop) {
-        desktop.style.backgroundImage = `url(${systemConfig.wallpaper})`;
+        // Используем localStorage для мгновенной загрузки обоев
+        const cachedWallpaper = localStorage.getItem('wallpaper_' + (currentUser?.uid || 'guest'));
+        const wallpaper = cachedWallpaper || systemConfig.wallpaper;
+        desktop.style.backgroundImage = `url(${wallpaper})`;
         desktop.style.backgroundSize = 'cover';
         desktop.style.backgroundPosition = 'center';
         desktop.style.backgroundRepeat = 'no-repeat';
@@ -1730,6 +1786,7 @@ onAuthStateChanged(auth, async (user) => {
     try {
         if (user) {
             currentUser = user;
+            loadFromLocalStorage(); // ← добавь эту строку
             await loadFromFirebase();
             
             if (systemConfig.password) {
