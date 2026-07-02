@@ -155,75 +155,6 @@ function showScreen(screen) {
         }
     }
 }
-
-async function saveToFirebase() {
-    if (!currentUser) return;
-    try {
-        // Убираем дубликаты из pinnedApps перед сохранением
-        const uniquePinned = [];
-        const seen = new Set();
-        pinnedApps.forEach(app => {
-            const key = app.title + (app.id || '');
-            if (!seen.has(key)) {
-                seen.add(key);
-                uniquePinned.push(app);
-            }
-        });
-        pinnedApps = uniquePinned;
-        
-        const userRef = doc(db, 'users', currentUser.uid);
-        await setDoc(userRef, {
-            desktopItems: currentDesktopItems,
-            trashItems: trashItems,
-            config: systemConfig,
-            pinnedApps: pinnedApps
-        }, { merge: true });
-    } catch (e) {
-        console.error('Save error:', e);
-    }
-}
-async function loadFromFirebase() {
-    if (!currentUser) return;
-    try {
-        const userRef = doc(db, 'users', currentUser.uid);
-        const docSnap = await getDoc(userRef);
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            currentDesktopItems = data.desktopItems || [];
-            trashItems = data.trashItems || [];
-            pinnedApps = data.pinnedApps || [];
-            systemConfig = { ...systemConfig, ...data.config };
-            applyConfig();
-            renderDesktop();
-            renderTaskbar();
-        } else {
-            currentDesktopItems = [];
-            pinnedApps = [];
-            renderDesktop();
-            renderTaskbar();
-        }
-    } catch (e) {
-        console.error('Load error:', e);
-    }
-}
-
-function applyConfig() {
-    if (desktop) {
-        // Используем localStorage для мгновенной загрузки обоев
-        const cachedWallpaper = localStorage.getItem('wallpaper_' + (currentUser?.uid || 'guest'));
-        const wallpaper = cachedWallpaper || systemConfig.wallpaper;
-        desktop.style.backgroundImage = `url(${wallpaper})`;
-        desktop.style.backgroundSize = 'cover';
-        desktop.style.backgroundPosition = 'center';
-        desktop.style.backgroundRepeat = 'no-repeat';
-    }
-    
-    document.body.classList.toggle('light-theme', systemConfig.theme === 'light');
-    document.documentElement.style.setProperty('--glass-opacity', systemConfig.glassOpacity || 0.6);
-    document.documentElement.style.setProperty('--glass-blur', (systemConfig.glassBlur || 20) + 'px');
-    document.documentElement.style.setProperty('--glass-border', systemConfig.glassBorder || 0.1);
-}
-
 // ===== ТАСКБАР =====
 function createTaskbar() {
     const existing = document.getElementById('taskbar');
@@ -1823,32 +1754,7 @@ document.getElementById('setup-prev')?.addEventListener('click', () => {
 });
 
 // ===== AUTH STATE =====
-onAuthStateChanged(auth, async (user) => {
-    console.log("Auth state changed:", user ? "Пользователь есть" : "Нет пользователя");
-    
-    try {
-        if (user) {
-            currentUser = user;
-            loadFromLocalStorage(); // ← добавь эту строку
-            await loadFromFirebase();
-            
-            if (systemConfig.password) {
-                showScreen(loginScreen);
-            } else {
-                showScreen(desktop);
-            }
-        } else {
-            currentStep = 1;
-            showScreen(authScreen);
-            renderSetupStep();
-        }
-    } catch (error) {
-        console.error("Ошибка при загрузке:", error);
-        showScreen(authScreen);
-    } finally {
-        showLoading(false);
-    }
-});
+
 
 // ===== ПЕРЕТАСКИВАНИЕ ФАЙЛОВ =====
 document.addEventListener('dragstart', (e) => {
@@ -3064,7 +2970,372 @@ function changeAvatarKs(win) {
     input.click();
 }
 
+// ===== СИСТЕМА СОХРАНЕНИЯ (LocalStorage + Firebase + ImgBB) =====
+
+// Загрузка ВСЕХ настроек из localStorage при старте
+function loadAllFromLocalStorage() {
+    if (!currentUser) return;
+    const uid = currentUser.uid;
+    
+    // Загружаем обои
+    const cachedWallpaper = localStorage.getItem('wallpaper_' + uid);
+    if (cachedWallpaper) {
+        systemConfig.wallpaper = cachedWallpaper;
+    }
+    
+    // Загружаем аватар
+    const cachedAvatar = localStorage.getItem('avatar_' + uid);
+    if (cachedAvatar) {
+        systemConfig.avatar = cachedAvatar;
+    }
+    
+    // Загружаем позиции иконок
+    const cachedPositions = localStorage.getItem('iconPositions_' + uid);
+    if (cachedPositions) {
+        const positions = JSON.parse(cachedPositions);
+        currentDesktopItems.forEach(item => {
+            if (positions[item.id]) {
+                item.x = positions[item.id].x;
+                item.y = positions[item.id].y;
+            }
+        });
+    }
+    
+    // Загружаем тему
+    const cachedTheme = localStorage.getItem('theme_' + uid);
+    if (cachedTheme) {
+        systemConfig.theme = cachedTheme;
+    }
+    
+    // Загружаем прозрачность стекла
+    const cachedGlass = localStorage.getItem('glassOpacity_' + uid);
+    if (cachedGlass) {
+        systemConfig.glassOpacity = parseFloat(cachedGlass);
+    }
+    
+    // Загружаем закреплённые приложения
+    const cachedPinned = localStorage.getItem('pinnedApps_' + uid);
+    if (cachedPinned) {
+        pinnedApps = JSON.parse(cachedPinned);
+    }
+    
+    applyConfig();
+}
+
+// Сохранение ВСЕХ настроек в localStorage при каждом изменении
+function saveAllToLocalStorage() {
+    if (!currentUser) return;
+    const uid = currentUser.uid;
+    
+    // Сохраняем обои
+    if (systemConfig.wallpaper) {
+        localStorage.setItem('wallpaper_' + uid, systemConfig.wallpaper);
+    }
+    
+    // Сохраняем аватар
+    if (systemConfig.avatar) {
+        localStorage.setItem('avatar_' + uid, systemConfig.avatar);
+    }
+    
+    // Сохраняем позиции иконок
+    const positions = {};
+    currentDesktopItems.forEach(item => {
+        if (item.x !== undefined && item.y !== undefined) {
+            positions[item.id] = { x: item.x, y: item.y };
+        }
+    });
+    localStorage.setItem('iconPositions_' + uid, JSON.stringify(positions));
+    
+    // Сохраняем тему
+    localStorage.setItem('theme_' + uid, systemConfig.theme);
+    
+    // Сохраняем прозрачность
+    localStorage.setItem('glassOpacity_' + uid, systemConfig.glassOpacity);
+    
+    // Сохраняем закреплённые приложения
+    localStorage.setItem('pinnedApps_' + uid, JSON.stringify(pinnedApps));
+}
+
+// Загрузка картинки в ImgBB (вызывается в фоне, не блокирует интерфейс)
+async function syncImageToCloud(dataUrl, type) {
+    if (!dataUrl || !currentUser) return;
+    
+    try {
+        const base64 = dataUrl.split(',')[1];
+        if (!base64) return;
+        
+        const formData = new FormData();
+        formData.append('image', base64);
+        formData.append('key', IMGBB_KEY);
+        
+        const res = await fetch('https://api.imgbb.com/1/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const json = await res.json();
+        if (json.success) {
+            const url = json.data.url;
+            
+            // Сохраняем URL в Firebase для синхронизации между устройствами
+            if (type === 'wallpaper') {
+                systemConfig.wallpaper = url;
+            } else if (type === 'avatar') {
+                systemConfig.avatar = url;
+            }
+            
+            // Обновляем localStorage с новым URL
+            localStorage.setItem(type + '_' + currentUser.uid, url);
+            
+            // Сохраняем в Firebase
+            await saveToFirebase();
+            
+            console.log('✅ ' + type + ' синхронизирован в облако');
+        }
+    } catch (e) {
+        console.log('⏳ Синхронизация ' + type + ' отложена (нет соединения)');
+        // Повторим при следующем сохранении
+    }
+}
+
+// Запускаем синхронизацию всех локальных данных в облако
+async function syncAllToCloud() {
+    if (!currentUser) return;
+    
+    const uid = currentUser.uid;
+    
+    // Синхронизируем обои если они локальные (data:image)
+    const wallpaper = localStorage.getItem('wallpaper_' + uid);
+    if (wallpaper && wallpaper.startsWith('data:image')) {
+        await syncImageToCloud(wallpaper, 'wallpaper');
+    }
+    
+    // Синхронизируем аватар если он локальный
+    const avatar = localStorage.getItem('avatar_' + uid);
+    if (avatar && avatar.startsWith('data:image')) {
+        await syncImageToCloud(avatar, 'avatar');
+    }
+}
+
+// ===== ОБНОВЛЁННАЯ ФУНКЦИЯ СОХРАНЕНИЯ В FIREBASE =====
+async function saveToFirebase() {
+    if (!currentUser) return;
+    
+    // Сначала сохраняем в localStorage для мгновенного доступа
+    saveAllToLocalStorage();
+    
+    // Затем сохраняем в Firebase
+    try {
+        const uniquePinned = [];
+        const seen = new Set();
+        pinnedApps.forEach(app => {
+            const key = app.title + (app.id || '');
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniquePinned.push(app);
+            }
+        });
+        pinnedApps = uniquePinned;
+        
+        const userRef = doc(db, 'users', currentUser.uid);
+        await setDoc(userRef, {
+            desktopItems: currentDesktopItems,
+            trashItems: trashItems,
+            config: systemConfig,
+            pinnedApps: pinnedApps
+        }, { merge: true });
+        
+        // После сохранения в Firebase — синхронизируем картинки в ImgBB
+        syncAllToCloud();
+        
+    } catch (e) {
+        console.error('Save error:', e);
+    }
+}
+
+// ===== ОБНОВЛЁННАЯ ЗАГРУЗКА ИЗ FIREBASE =====
+async function loadFromFirebase() {
+    if (!currentUser) return;
+    
+    // Сначала загружаем из localStorage (мгновенно)
+    loadAllFromLocalStorage();
+    
+    // Затем загружаем из Firebase (перезаписывает если есть новые данные)
+    try {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            
+            // Загружаем из Firebase только если данных нет в localStorage
+            if (!localStorage.getItem('wallpaper_' + currentUser.uid)) {
+                systemConfig.wallpaper = data.config?.wallpaper || systemConfig.wallpaper;
+            }
+            
+            currentDesktopItems = data.desktopItems || [];
+            trashItems = data.trashItems || [];
+            
+            // Восстанавливаем позиции из localStorage
+            const cachedPositions = localStorage.getItem('iconPositions_' + currentUser.uid);
+            if (cachedPositions) {
+                const positions = JSON.parse(cachedPositions);
+                currentDesktopItems.forEach(item => {
+                    if (positions[item.id]) {
+                        item.x = positions[item.id].x;
+                        item.y = positions[item.id].y;
+                    }
+                });
+            }
+            
+            // Загружаем конфиг (тема, стекло)
+            if (data.config) {
+                systemConfig = { ...systemConfig, ...data.config };
+                // Но обои и аватар берём из localStorage если есть
+                const localWallpaper = localStorage.getItem('wallpaper_' + currentUser.uid);
+                const localAvatar = localStorage.getItem('avatar_' + currentUser.uid);
+                if (localWallpaper) systemConfig.wallpaper = localWallpaper;
+                if (localAvatar) systemConfig.avatar = localAvatar;
+            }
+            
+            // Загружаем закреплённые из localStorage если есть
+            const localPinned = localStorage.getItem('pinnedApps_' + currentUser.uid);
+            if (localPinned) {
+                pinnedApps = JSON.parse(localPinned);
+            } else {
+                pinnedApps = data.pinnedApps || [];
+            }
+            
+            applyConfig();
+            renderDesktop();
+            renderTaskbar();
+        } else {
+            // Новый пользователь
+            currentDesktopItems = [];
+            pinnedApps = [];
+            renderDesktop();
+            renderTaskbar();
+            // Создаём запись в Firebase
+            await saveToFirebase();
+        }
+        
+        // Запускаем фоновую синхронизацию в ImgBB
+        syncAllToCloud();
+        
+    } catch (e) {
+        console.error('Load error:', e);
+    }
+}
+
+// ===== ОБНОВЛЁННАЯ AUTH STATE =====
+onAuthStateChanged(auth, async (user) => {
+    console.log("Auth state changed:", user ? "Пользователь есть" : "Нет пользователя");
+    
+    try {
+        if (user) {
+            currentUser = user;
+            
+            // Сначала показываем данные из localStorage (мгновенно)
+            loadAllFromLocalStorage();
+            applyConfig();
+            renderDesktop();
+            renderTaskbar();
+            
+            // Затем подгружаем из Firebase
+            await loadFromFirebase();
+            
+            if (systemConfig.password) {
+                showScreen(loginScreen);
+            } else {
+                showScreen(desktop);
+            }
+        } else {
+            // Очищаем данные при выходе
+            currentUser = null;
+            currentDesktopItems = [];
+            trashItems = [];
+            pinnedApps = [];
+            currentStep = 1;
+            showScreen(authScreen);
+            renderSetupStep();
+        }
+    } catch (error) {
+        console.error("Ошибка при загрузке:", error);
+        showScreen(authScreen);
+    } finally {
+        showLoading(false);
+    }
+});
+
+// ===== ФУНКЦИЯ ДЛЯ УСТАНОВКИ ОБОЕВ (с автосинхронизацией) =====
+function setWallpaper(url) {
+    systemConfig.wallpaper = url;
+    
+    // Мгновенно сохраняем в localStorage
+    if (currentUser) {
+        localStorage.setItem('wallpaper_' + currentUser.uid, url);
+    }
+    
+    // Применяем
+    applyConfig();
+    
+    // Сохраняем в Firebase + синхронизируем в ImgBB
+    saveToFirebase();
+    
+    // Если это локальный файл — загружаем в ImgBB
+    if (url.startsWith('data:image')) {
+        syncImageToCloud(url, 'wallpaper');
+    }
+}
+
+// ===== ФУНКЦИЯ ДЛЯ УСТАНОВКИ АВАТАРА (с автосинхронизацией) =====
+function setAvatar(dataUrl) {
+    systemConfig.avatar = dataUrl;
+    
+    // Мгновенно сохраняем в localStorage
+    if (currentUser) {
+        localStorage.setItem('avatar_' + currentUser.uid, dataUrl);
+    }
+    
+    // Сохраняем в Firebase + синхронизируем в ImgBB
+    saveToFirebase();
+    
+    // Загружаем в ImgBB
+    if (dataUrl.startsWith('data:image')) {
+        syncImageToCloud(dataUrl, 'avatar');
+    }
+}
+
+// ===== ОБНОВЛЯЕМ ОБРАБОТЧИКИ В НАСТРОЙКАХ =====
+// В showKsSection → personalize → обработчик выбора обоев:
+// Замени все systemConfig.wallpaper = ... на setWallpaper(...)
+
+// В changeAvatarKs — замени на:
+function changeAvatarKs(win) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const dataUrl = ev.target.result;
+            setAvatar(dataUrl); // ← сохраняет локально + синхронизирует в облако
+            
+            // Обновляем отображение
+            const avatar = win.querySelector('#ks-avatar');
+            if (avatar) {
+                avatar.style.backgroundImage = `url(${dataUrl})`;
+                avatar.style.backgroundSize = 'cover';
+                avatar.textContent = '';
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+    input.click();
+}
+
 console.log('✅ K-OS полностью обновлён!');
+console.log('✅ Сохранение в localStorage + Firebase + ImgBB');
 console.log('✅ Добавлен таскбар с управлением окнами');
 console.log('✅ Закрепление приложений на панели');
 console.log('✅ Контекстное меню для иконок таскбара');
