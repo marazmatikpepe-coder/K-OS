@@ -1942,3 +1942,4 @@ body.light-theme .start-menu input {
 .settings-card:hover { border-color: rgba(255,255,255,0.1); }
 .device-card { transition: all 0.2s ease; }
 .device-card:hover { background: rgba(255,255,255,0.05); }
+#personalize-modal { display: none !important; }
