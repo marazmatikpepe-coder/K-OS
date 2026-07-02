@@ -656,15 +656,25 @@ function createDesktopIcon(item) {
     
     let iconClass = 'fa-file';
     if (item.type === 'folder') iconClass = 'fa-folder';
-    else if (isImage) iconClass = 'fa-image';
+    else if (isImage) iconClass = ''; // Будет миниатюра
     else if (item.name.endsWith('.txt')) iconClass = 'fa-file-alt';
     else if (item.name.endsWith('.doc')) iconClass = 'fa-file-word';
     else if (item.name.endsWith('.exe') || item.name.endsWith('.ky')) iconClass = 'fa-cog';
     
-    icon.innerHTML = `
-        <div class="icon-img"><i class="fas ${iconClass}"></i></div>
-        <div class="icon-label">${item.name}</div>
-    `;
+    if (isImage) {
+        // Миниатюра реального фото
+        icon.innerHTML = `
+            <div class="icon-img" style="width:56px;height:56px;border-radius:12px;overflow:hidden;background:rgba(0,0,0,0.2);">
+                <img src="${item.content}" style="width:100%;height:100%;object-fit:cover;" draggable="false" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-image\\' style=\\'font-size:36px;\\'></i>'">
+            </div>
+            <div class="icon-label">${item.name.length > 15 ? item.name.slice(0,12)+'...' : item.name}</div>
+        `;
+    } else {
+        icon.innerHTML = `
+            <div class="icon-img"><i class="fas ${iconClass}"></i></div>
+            <div class="icon-label">${item.name.length > 15 ? item.name.slice(0,12)+'...' : item.name}</div>
+        `;
+    }
     
     icon.ondblclick = () => {
         if (item.type === 'folder') {
@@ -686,6 +696,14 @@ function createDesktopIcon(item) {
     };
     
     icon.addEventListener('dragstart', (e) => {
+        // Создаём кастомное изображение для перетаскивания
+        if (isImage) {
+            const dragImg = new Image();
+            dragImg.src = item.content;
+            dragImg.style.width = '56px';
+            dragImg.style.height = '56px';
+            e.dataTransfer.setDragImage(dragImg, 28, 28);
+        }
         e.dataTransfer.setData('text/plain', item.id);
         dragData = { id: item.id, isTrash: false };
         icon.style.opacity = '0.5';
@@ -1220,12 +1238,21 @@ function openFolderWindow(folder) {
                 });
                 content.appendChild(div);
             });
-        } else {
-            items.forEach(item => {
-                const icon = createDesktopIcon(item);
-                icon.style.width = '70px';
-                const img = icon.querySelector('.icon-img');
-                if (img) img.style.fontSize = '28px';
+       } else {
+    items.forEach(item => {
+        const icon = createDesktopIcon(item);
+        icon.style.width = '70px';
+        const imgEl = icon.querySelector('.icon-img');
+        if (imgEl) {
+            const isImg = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
+            if (isImg) {
+                imgEl.style.width = '50px';
+                imgEl.style.height = '50px';
+                imgEl.style.borderRadius = '10px';
+            } else {
+                imgEl.style.fontSize = '28px';
+            }
+        }
                 icon.draggable = true;
                 icon.addEventListener('dragstart', (e) => {
                     e.dataTransfer.setData('text/plain', item.id);
@@ -1493,8 +1520,24 @@ desktop?.addEventListener('contextmenu', (e) => {
                     if (action === 'open-trash') openTrash();
                     else if (action === 'clear-trash') clearTrash();
                     else if (action === 'personalize') {
-                        document.getElementById('personalize-modal').style.display = 'flex';
-                    } else if (action === 'create-folder') {
+    if (window.openSettings) {
+        window.openSettings();
+        // Переключаем на вкладку персонализации
+        setTimeout(() => {
+            const navItems = document.querySelectorAll('.ks-nav-item');
+            navItems.forEach(i => i.classList.remove('active'));
+            const personalizeNav = document.querySelector('.ks-nav-item[data-section="personalize"]');
+            if (personalizeNav) {
+                personalizeNav.classList.add('active');
+                const win = document.querySelector('[data-file-id="settings-window"]');
+                if (win) showKsSection(win, 'personalize');
+            }
+        }, 200);
+    } else {
+        document.getElementById('personalize-modal').style.display = 'flex';
+    }
+}
+                    else if (action === 'create-folder') {
                         const name = prompt('Название папки:', 'Новая папка');
                         if (name) {
                             currentDesktopItems.push({ id: Date.now() + Math.random(), name: name, type: 'folder' });
