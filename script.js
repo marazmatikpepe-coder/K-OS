@@ -13,7 +13,6 @@ import {
 const IMGBB_KEY = "cc09691527f520d75134d23712471d2c";
 // Кеш для быстрой загрузки
 const imageCache = new Map();
-
 // Загрузка изображения с кешированием
 async function loadImage(url) {
     if (imageCache.has(url)) return imageCache.get(url);
@@ -121,7 +120,23 @@ document.addEventListener('dragstart', (e) => {
         e.preventDefault();
     }
 });
-
+function applyConfig() {
+    if (desktop) {
+        var wp = systemConfig.wallpaper;
+        if (currentUser) {
+            var cached = localStorage.getItem('wallpaper_' + currentUser.uid);
+            if (cached) wp = cached;
+        }
+        desktop.style.backgroundImage = 'url(' + wp + ')';
+        desktop.style.backgroundSize = 'cover';
+        desktop.style.backgroundPosition = 'center';
+        desktop.style.backgroundRepeat = 'no-repeat';
+    }
+    document.body.classList.toggle('light-theme', systemConfig.theme === 'light');
+    document.documentElement.style.setProperty('--glass-opacity', systemConfig.glassOpacity || 0.6);
+    document.documentElement.style.setProperty('--glass-blur', (systemConfig.glassBlur || 20) + 'px');
+    document.documentElement.style.setProperty('--glass-border', systemConfig.glassBorder || 0.1);
+}
 // ===== АВТОСОХРАНЕНИЕ =====
 let autoSaveInterval = null;
 
