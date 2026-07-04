@@ -2952,24 +2952,6 @@ function changePasswordKs() {
     });
 }
 
-function changeAvatarKs(win) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const avatar = win.querySelector('#ks-avatar');
-            avatar.style.backgroundImage = `url(${ev.target.result})`;
-            avatar.style.backgroundSize = 'cover';
-            avatar.textContent = '';
-        };
-        reader.readAsDataURL(file);
-    };
-    input.click();
-}
-
 // ===== СИСТЕМА СОХРАНЕНИЯ (LocalStorage + Firebase + ImgBB) =====
 
 // Загрузка ВСЕХ настроек из localStorage при старте
