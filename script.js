@@ -2072,15 +2072,36 @@ window.addEventListener('message', (e) => {
 });
 
 // ===== ЗАПУСК ПРИЛОЖЕНИЙ (ПЕРЕОПРЕДЕЛЕНИЕ) =====
-const origLaunchApp = launchApp;
-launchApp = function(appData) {
-    if (appData.type === 'webapp' && appData.content) {
-        openAppWindow({ name: appData.title + '.exe', content: appData.content, id: appData.id });
-        return;
-    }
-    origLaunchApp(appData);
-};
-
+// Проверяем, существует ли launchApp, если нет — создаём заглушку
+if (typeof launchApp !== 'undefined') {
+    const origLaunchApp = launchApp;
+    launchApp = function(appData) {
+        if (appData.type === 'webapp' && appData.content) {
+            openAppWindow({ name: appData.title + '.exe', content: appData.content, id: appData.id });
+            return;
+        }
+        origLaunchApp(appData);
+    };
+} else {
+    // Если launchApp ещё не определена, определяем её здесь
+    window.launchApp = function(appData) {
+        if (appData.type === 'webapp' && appData.content) {
+            openAppWindow({ name: appData.title + '.exe', content: appData.content, id: appData.id });
+            return;
+        }
+        // Ищем файл/папку на рабочем столе
+        const item = currentDesktopItems.find(i => 
+            i.name === appData.title || 
+            i.id == appData.id || 
+            i.id == appData.fileId
+        );
+        if (item) {
+            if (item.type === 'folder') openFolderWindow(item);
+            else openFile(item);
+            return;
+        }
+    };
+}
 // ================================================================
 // ===== НАСТРОЙКИ (ПОЛНОСТЬЮ РАБОЧИЕ) =====
 // ================================================================
