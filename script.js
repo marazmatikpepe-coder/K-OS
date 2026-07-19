@@ -1976,101 +1976,1022 @@ function floodFill(x, y, fillColor) {
     kdCtx.putImageData(imageData, 0, 0);
 }
 
-// ===== КОНСТРУКТОР ПРИЛОЖЕНИЙ =====
-function openAppBuilder2() {
-    document.getElementById('app-builder-window').style.display = 'flex';
+// ================================================================
+// ===== КОНСТРУКТОР ПРИЛОЖЕНИЙ v2.0 (ПОЛНОСТЬЮ ПЕРЕРАБОТАН) =====
+// ================================================================
+
+// Состояние конструктора
+const builderState = {
+    currentView: 'welcome',
+    projectName: 'Мой проект',
+    projectDescription: '',
+    appType: 'web', // 'web' | 'editor'
+    url: '',
+    htmlCode: '',
+    cssCode: '',
+    jsCode: '',
+    icon: '',
+    allowFileAccess: false,
+    recentProjects: [],
+    currentFile: null,
+    isModified: false
+};
+
+// Загрузка сохранённых проектов
+function loadBuilderState() {
+    try {
+        const saved = localStorage.getItem('builder_recent_projects');
+        if (saved) {
+            builderState.recentProjects = JSON.parse(saved);
+        }
+    } catch(e) {}
 }
 
-function testApp() {
-    const url = document.getElementById('builder-app-url').value.trim();
-    const code = document.getElementById('builder-html-code').value.trim();
-    const iframe = document.getElementById('builder-preview');
-    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-        iframe.src = url;
-    } else if (code) {
-        const apiCode = `
+// Сохранение состояния
+function saveBuilderState() {
+    try {
+        localStorage.setItem('builder_recent_projects', JSON.stringify(builderState.recentProjects));
+    } catch(e) {}
+}
+
+// Открытие конструктора
+function openAppBuilder2() {
+    const win = document.getElementById('app-builder-window');
+    if (!win) return;
+    win.style.display = 'flex';
+    loadBuilderState();
+    renderBuilderView('welcome');
+    updateRecentProjects();
+}
+
+// Рендер вьюх конструктора
+function renderBuilderView(view) {
+    builderState.currentView = view;
+    const content = document.getElementById('builder-content');
+    if (!content) return;
+
+    // Обновляем навигацию
+    document.querySelectorAll('.builder-nav-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.view === view);
+    });
+
+    switch(view) {
+        case 'welcome':
+            renderWelcomeView(content);
+            break;
+        case 'webapp':
+            renderWebAppView(content);
+            break;
+        case 'editor':
+            renderEditorView(content);
+            break;
+        case 'preview':
+            renderPreviewView(content);
+            break;
+        case 'settings':
+            renderSettingsView(content);
+            break;
+        default:
+            content.innerHTML = '<p style="opacity:0.5;">Выберите раздел</p>';
+    }
+}
+
+// ===== ГЛАВНАЯ =====
+function renderWelcomeView(content) {
+    content.innerHTML = `
+        <div style="max-width:900px;margin:0 auto;">
+            <div style="text-align:center;padding:20px 0 30px;">
+                <div style="font-size:48px;margin-bottom:16px;">🚀</div>
+                <h1 style="font-size:32px;font-weight:700;background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Создай своё приложение</h1>
+                <p style="opacity:0.6;font-size:16px;margin-top:8px;">Выберите способ создания или откройте существующий проект</p>
+            </div>
+
+            <div class="builder-grid">
+                <div class="builder-card" style="cursor:pointer;transition:all 0.3s;" onclick="renderBuilderView('webapp')" onmouseover="this.style.borderColor='#667eea';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
+                    <div style="font-size:32px;margin-bottom:12px;">🌐</div>
+                    <h3 style="margin-bottom:8px;">Веб-сайт (Iframe)</h3>
+                    <p style="opacity:0.5;font-size:13px;">Вставьте URL и создайте приложение-обёртку для любого сайта</p>
+                    <div style="margin-top:12px;font-size:12px;opacity:0.3;">Поддерживает: любые сайты</div>
+                </div>
+
+                <div class="builder-card" style="cursor:pointer;transition:all 0.3s;" onclick="renderBuilderView('editor')" onmouseover="this.style.borderColor='#667eea';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
+                    <div style="font-size:32px;margin-bottom:12px;">💻</div>
+                    <h3 style="margin-bottom:8px;">Редактор кода</h3>
+                    <p style="opacity:0.5;font-size:13px;">Напишите HTML/CSS/JS код в профессиональном редакторе</p>
+                    <div style="margin-top:12px;font-size:12px;opacity:0.3;">Поддерживает: HTML, CSS, JavaScript</div>
+                </div>
+
+                <div class="builder-card" style="cursor:pointer;transition:all 0.3s;" onclick="document.getElementById('builder-load').click()" onmouseover="this.style.borderColor='#4ecdc4';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
+                    <div style="font-size:32px;margin-bottom:12px;">📂</div>
+                    <h3 style="margin-bottom:8px;">Открыть проект</h3>
+                    <p style="opacity:0.5;font-size:13px;">Загрузите ранее сохранённый .Wrk файл</p>
+                    <div style="margin-top:12px;font-size:12px;opacity:0.3;">Форматы: .Wrk, .Ky</div>
+                </div>
+
+                <div class="builder-card" style="cursor:pointer;transition:all 0.3s;" onclick="loadExampleProject()" onmouseover="this.style.borderColor='#ffaa44';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
+                    <div style="font-size:32px;margin-bottom:12px;">📖</div>
+                    <h3 style="margin-bottom:8px;">Пример проекта</h3>
+                    <p style="opacity:0.5;font-size:13px;">Загрузите демо-приложение для изучения</p>
+                    <div style="margin-top:12px;font-size:12px;opacity:0.3;">Включает: Todo-приложение</div>
+                </div>
+            </div>
+
+            <div style="margin-top:30px;padding:20px;background:rgba(255,255,255,0.03);border-radius:16px;border:1px dashed rgba(255,255,255,0.1);">
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <i class="fas fa-info-circle" style="color:#667eea;"></i>
+                    <span style="font-size:13px;opacity:0.7;">Новые проекты автоматически сохраняются в недавние</span>
+                    <span style="font-size:12px;opacity:0.3;margin-left:auto;">${builderState.recentProjects.length} проектов</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ===== ВЕБ-САЙТ =====
+function renderWebAppView(content) {
+    content.innerHTML = `
+        <div style="max-width:800px;margin:0 auto;">
+            <h2 style="margin-bottom:24px;">🌐 Создать веб-приложение</h2>
+            
+            <div class="builder-card">
+                <div class="builder-card-title"><i class="fas fa-link" style="color:#667eea;"></i> URL сайта</div>
+                <input class="builder-input" id="builder-url-input" placeholder="https://example.com" value="${builderState.url}" style="margin-bottom:12px;">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="builder-btn secondary" onclick="document.getElementById('builder-url-input').value='https://example.com'">Пример</button>
+                    <button class="builder-btn secondary" onclick="document.getElementById('builder-url-input').value='https://google.com'">Google</button>
+                    <button class="builder-btn secondary" onclick="document.getElementById('builder-url-input').value='https://github.com'">GitHub</button>
+                </div>
+            </div>
+
+            <div class="builder-card">
+                <div class="builder-card-title"><i class="fas fa-palette" style="color:#4ecdc4;"></i> Оформление</div>
+                <input class="builder-input" id="builder-web-name" placeholder="Название приложения" value="${builderState.projectName}" style="margin-bottom:12px;">
+                <input class="builder-input" id="builder-web-icon" placeholder="URL иконки (опционально)" value="${builderState.icon}">
+            </div>
+
+            <div class="builder-card">
+                <div class="builder-card-title"><i class="fas fa-shield-alt" style="color:#ffaa44;"></i> Доступ к файлам</div>
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                    <input type="checkbox" id="builder-web-file-access" ${builderState.allowFileAccess ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
+                    <span style="font-size:13px;">Разрешить приложению отправлять файлы в K-OS</span>
+                </label>
+                <div style="margin-top:8px;font-size:12px;opacity:0.4;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;">
+                    <i class="fas fa-info-circle"></i> Приложение сможет использовать window.KOS.saveFile() для сохранения файлов
+                </div>
+            </div>
+
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
+                <button class="builder-btn primary" onclick="saveWebAppData()">
+                    <i class="fas fa-check"></i> Применить
+                </button>
+                <button class="builder-btn secondary" onclick="previewWebApp()">
+                    <i class="fas fa-eye"></i> Предпросмотр
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// ===== РЕДАКТОР КОДА =====
+function renderEditorView(content) {
+    content.innerHTML = `
+        <div style="max-width:100%;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                <h2 style="margin:0;">💻 Редактор кода</h2>
+                <div style="display:flex;gap:8px;">
+                    <button class="builder-btn secondary" onclick="formatCode()"><i class="fas fa-magic"></i> Форматировать</button>
+                    <button class="builder-btn secondary" onclick="previewEditorCode()"><i class="fas fa-play"></i> Запустить</button>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div>
+                    <label style="font-size:12px;opacity:0.5;display:block;margin-bottom:4px;">Название проекта</label>
+                    <input class="builder-input" id="builder-editor-name" value="${builderState.projectName}" placeholder="Название">
+                </div>
+                <div>
+                    <label style="font-size:12px;opacity:0.5;display:block;margin-bottom:4px;">Иконка (URL)</label>
+                    <input class="builder-input" id="builder-editor-icon" value="${builderState.icon}" placeholder="https://...">
+                </div>
+                <div>
+                    <label style="font-size:12px;opacity:0.5;display:block;margin-bottom:4px;">Доступ к файлам</label>
+                    <div style="display:flex;align-items:center;gap:10px;padding-top:6px;">
+                        <input type="checkbox" id="builder-editor-file-access" ${builderState.allowFileAccess ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
+                        <span style="font-size:13px;">Разрешить</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладки кода -->
+            <div style="display:flex;gap:4px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:0;">
+                <button class="code-tab active" data-tab="html" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid #667eea;transition:all 0.2s;">HTML</button>
+                <button class="code-tab" data-tab="css" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;transition:all 0.2s;">CSS</button>
+                <button class="code-tab" data-tab="js" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;transition:all 0.2s;">JavaScript</button>
+                <button class="code-tab" data-tab="preview" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;transition:all 0.2s;margin-left:auto;">👁 Предпросмотр</button>
+            </div>
+
+            <!-- Редакторы -->
+            <div id="code-editors" style="position:relative;">
+                <textarea class="builder-textarea code-editor active" id="editor-html" data-lang="html" style="min-height:400px;">${builderState.htmlCode || '<!DOCTYPE html>\n<html>\n<head>\n    <meta charset="UTF-8">\n    <title>Моё приложение</title>\n    <style>\n        /* Твой CSS здесь */\n    </style>\n</head>\n<body>\n    <h1>Привет, K-OS!</h1>\n    <script>\n        // Твой JavaScript здесь\n    <\/script>\n</body>\n</html>'}</textarea>
+                <textarea class="builder-textarea code-editor" id="editor-css" data-lang="css" style="min-height:400px;display:none;">${builderState.cssCode || 'body {\n    background: linear-gradient(135deg, #1a1a2e, #16213e);\n    color: white;\n    font-family: Arial, sans-serif;\n    padding: 20px;\n    min-height: 100vh;\n    margin: 0;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\nh1 {\n    font-size: 48px;\n    background: linear-gradient(135deg, #667eea, #764ba2);\n    -webkit-background-clip: text;\n    -webkit-text-fill-color: transparent;\n}'}</textarea>
+                <textarea class="builder-textarea code-editor" id="editor-js" data-lang="js" style="min-height:400px;display:none;">${builderState.jsCode || 'console.log("Приложение запущено!");\n\n// Пример: сохранение файла в K-OS\nfunction saveToKOS() {\n    if (window.KOS && window.KOS.saveFile) {\n        window.KOS.saveFile("пример.txt", "Hello from K-OS!");\n        alert("Файл сохранён в K-OS!");\n    }\n}'}</textarea>
+                <div id="editor-preview" style="min-height:400px;display:none;background:white;border-radius:12px;overflow:hidden;">
+                    <iframe id="editor-preview-frame" style="width:100%;height:100%;border:none;min-height:400px;"></iframe>
+                </div>
+            </div>
+
+            <div style="margin-top:12px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:12px;opacity:0.4;display:flex;gap:20px;flex-wrap:wrap;">
+                <span><kbd style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px;">Ctrl+S</kbd> Сохранить</span>
+                <span><kbd style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px;">Ctrl+Z</kbd> Отменить</span>
+                <span><kbd style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px;">Ctrl+Shift+P</kbd> Предпросмотр</span>
+            </div>
+        </div>
+    `;
+
+    // Переключение вкладок
+    document.querySelectorAll('.code-tab').forEach(tab => {
+        tab.onclick = () => {
+            document.querySelectorAll('.code-tab').forEach(t => t.style.borderBottom = '2px solid transparent');
+            tab.style.borderBottom = '2px solid #667eea';
+            
+            const target = tab.dataset.tab;
+            document.querySelectorAll('.code-editor').forEach(el => el.style.display = 'none');
+            document.getElementById('editor-preview').style.display = 'none';
+            
+            if (target === 'preview') {
+                document.getElementById('editor-preview').style.display = 'block';
+                previewEditorCode();
+            } else {
+                const editor = document.getElementById(`editor-${target}`);
+                if (editor) {
+                    editor.style.display = 'block';
+                }
+            }
+        };
+    });
+
+    // Горячие клавиши для редактора
+    const editors = document.querySelectorAll('.code-editor');
+    editors.forEach(editor => {
+        editor.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                saveEditorCode();
+                showNotification('Сохранено', 'Код сохранён', '💾', 1500);
+            }
+            if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                e.preventDefault();
+                previewEditorCode();
+            }
+            // Табуляция в редакторе
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = editor.selectionStart;
+                const end = editor.selectionEnd;
+                editor.value = editor.value.substring(0, start) + '    ' + editor.value.substring(end);
+                editor.selectionStart = editor.selectionEnd = start + 4;
+            }
+        });
+    });
+}
+
+// ===== ПРЕДПРОСМОТР =====
+function renderPreviewView(content) {
+    content.innerHTML = `
+        <div style="max-width:100%;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                <h2 style="margin:0;">👁 Предпросмотр приложения</h2>
+                <div style="display:flex;gap:8px;">
+                    <button class="builder-btn secondary" onclick="refreshPreview()"><i class="fas fa-sync-alt"></i> Обновить</button>
+                    <button class="builder-btn primary" onclick="openPreviewFullscreen()"><i class="fas fa-expand"></i> Полный экран</button>
+                </div>
+            </div>
+            <div style="background:white;border-radius:16px;overflow:hidden;height:70vh;min-height:400px;">
+                <iframe id="builder-preview-frame" style="width:100%;height:100%;border:none;background:white;"></iframe>
+            </div>
+            <div style="margin-top:12px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:12px;opacity:0.4;display:flex;gap:20px;flex-wrap:wrap;">
+                <span>🔄 Обновляется автоматически</span>
+                <span>📱 Адаптивный</span>
+            </div>
+        </div>
+    `;
+    refreshPreview();
+}
+
+// ===== НАСТРОЙКИ =====
+function renderSettingsView(content) {
+    content.innerHTML = `
+        <div style="max-width:700px;margin:0 auto;">
+            <h2 style="margin-bottom:24px;">⚙️ Настройки конструктора</h2>
+            
+            <div class="builder-card">
+                <div class="builder-card-title"><i class="fas fa-palette" style="color:#667eea;"></i> Тема редактора</div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="builder-btn primary" onclick="setEditorTheme('dark')">🌙 Тёмная</button>
+                    <button class="builder-btn secondary" onclick="setEditorTheme('light')">☀️ Светлая</button>
+                </div>
+            </div>
+
+            <div class="builder-card">
+                <div class="builder-card-title"><i class="fas fa-font" style="color:#4ecdc4;"></i> Размер шрифта</div>
+                <input type="range" id="editor-font-size" min="10" max="20" value="13" style="width:200px;" oninput="document.querySelectorAll('.builder-textarea').forEach(el => el.style.fontSize = this.value + 'px')">
+                <span id="font-size-label">13px</span>
+            </div>
+
+            <div class="builder-card">
+                <div class="builder-card-title"><i class="fas fa-trash" style="color:#ff6b6b;"></i> Очистить данные</div>
+                <button class="builder-btn secondary" onclick="clearBuilderData()" style="color:#ff6b6b;border-color:rgba(255,107,107,0.3);">
+                    <i class="fas fa-trash"></i> Очистить все проекты
+                </button>
+            </div>
+
+            <div class="builder-card">
+                <div class="builder-card-title"><i class="fas fa-info-circle" style="color:#ffaa44;"></i> О конструкторе</div>
+                <p style="opacity:0.6;font-size:13px;">Версия 2.0.0</p>
+                <p style="opacity:0.4;font-size:12px;">Поддерживает создание веб-приложений и нативных .Ky файлов для K-OS</p>
+                <div style="margin-top:8px;font-size:11px;opacity:0.3;">
+                    <div>📦 Экспорт: .Wrk (проект), .Ky (приложение)</div>
+                    <div>🔗 Интеграция: K-OS API для работы с файлами</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ================================================================
+// ===== ФУНКЦИИ КОНСТРУКТОРА =====
+// ================================================================
+
+// Сохранение данных веб-приложения
+function saveWebAppData() {
+    builderState.url = document.getElementById('builder-url-input').value.trim();
+    builderState.projectName = document.getElementById('builder-web-name').value.trim() || 'Веб-приложение';
+    builderState.icon = document.getElementById('builder-web-icon').value.trim();
+    builderState.allowFileAccess = document.getElementById('builder-web-file-access').checked;
+    builderState.appType = 'web';
+    
+    addRecentProject({
+        name: builderState.projectName,
+        type: 'web',
+        url: builderState.url,
+        icon: builderState.icon,
+        timestamp: Date.now()
+    });
+    
+    showNotification('Сохранено', `Проект "${builderState.projectName}" сохранён`, '✅', 2000);
+    saveBuilderState();
+}
+
+// Предпросмотр веб-приложения
+function previewWebApp() {
+    const url = document.getElementById('builder-url-input').value.trim();
+    if (!url) {
+        showNotification('Ошибка', 'Введите URL сайта', '❌', 2000);
+        return;
+    }
+    const previewFrame = document.getElementById('builder-preview-frame');
+    if (previewFrame) {
+        previewFrame.src = url;
+        renderBuilderView('preview');
+    }
+}
+
+// Сохранение кода из редактора
+function saveEditorCode() {
+    const htmlEditor = document.getElementById('editor-html');
+    const cssEditor = document.getElementById('editor-css');
+    const jsEditor = document.getElementById('editor-js');
+    const nameInput = document.getElementById('builder-editor-name');
+    const iconInput = document.getElementById('builder-editor-icon');
+    const accessCheck = document.getElementById('builder-editor-file-access');
+    
+    if (htmlEditor) builderState.htmlCode = htmlEditor.value;
+    if (cssEditor) builderState.cssCode = cssEditor.value;
+    if (jsEditor) builderState.jsCode = jsEditor.value;
+    if (nameInput) builderState.projectName = nameInput.value.trim() || 'Мой проект';
+    if (iconInput) builderState.icon = iconInput.value.trim();
+    if (accessCheck) builderState.allowFileAccess = accessCheck.checked;
+    builderState.appType = 'editor';
+    
+    addRecentProject({
+        name: builderState.projectName,
+        type: 'editor',
+        html: builderState.htmlCode,
+        css: builderState.cssCode,
+        js: builderState.jsCode,
+        icon: builderState.icon,
+        timestamp: Date.now()
+    });
+    
+    saveBuilderState();
+    showNotification('Сохранено', `Проект "${builderState.projectName}" сохранён`, '💾', 1500);
+}
+
+// Предпросмотр кода из редактора
+function previewEditorCode() {
+    const html = document.getElementById('editor-html')?.value || '';
+    const css = document.getElementById('editor-css')?.value || '';
+    const js = document.getElementById('editor-js')?.value || '';
+    
+    const fullHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>${css}</style>
+</head>
+<body>
+    ${html}
+    <script>${js}<\/script>
+</body>
+</html>
+    `;
+    
+    const previewFrame = document.getElementById('editor-preview-frame') || document.getElementById('builder-preview-frame');
+    if (previewFrame) {
+        previewFrame.srcdoc = fullHTML;
+        // Переключаем на вкладку предпросмотра если она есть
+        const previewTab = document.querySelector('.code-tab[data-tab="preview"]');
+        if (previewTab) previewTab.click();
+    }
+}
+
+// Форматирование кода (простое)
+function formatCode() {
+    const editors = document.querySelectorAll('.code-editor');
+    editors.forEach(editor => {
+        try {
+            const value = editor.value;
+            // Простое форматирование - убираем лишние пробелы
+            const formatted = value.split('\n').map(line => line.trim()).filter(line => line).join('\n');
+            editor.value = formatted;
+        } catch(e) {}
+    });
+    showNotification('Готово', 'Код отформатирован', '✨', 1500);
+}
+
+// Обновление предпросмотра
+function refreshPreview() {
+    const previewFrame = document.getElementById('builder-preview-frame');
+    if (!previewFrame) return;
+    
+    // Если есть код в редакторе - показываем его
+    const htmlEditor = document.getElementById('editor-html');
+    if (htmlEditor && builderState.appType === 'editor') {
+        previewEditorCode();
+        return;
+    }
+    
+    // Если есть URL - показываем сайт
+    if (builderState.url) {
+        previewFrame.src = builderState.url;
+    }
+}
+
+// Открыть предпросмотр на весь экран
+function openPreviewFullscreen() {
+    const frame = document.getElementById('builder-preview-frame');
+    if (frame) {
+        if (frame.requestFullscreen) {
+            frame.requestFullscreen();
+        }
+    }
+}
+
+// ================================================================
+// ===== СОХРАНЕНИЕ И ЭКСПОРТ =====
+// ================================================================
+
+// Сохранить как .Wrk файл
+document.getElementById('builder-save-wrk')?.addEventListener('click', function() {
+    saveEditorCode();
+    
+    const projectData = {
+        version: '2.0',
+        name: builderState.projectName,
+        type: builderState.appType,
+        url: builderState.url,
+        html: builderState.htmlCode,
+        css: builderState.cssCode,
+        js: builderState.jsCode,
+        icon: builderState.icon,
+        allowFileAccess: builderState.allowFileAccess,
+        timestamp: Date.now()
+    };
+    
+    const json = JSON.stringify(projectData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${builderState.projectName || 'проект'}.Wrk`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showNotification('Экспортировано', `Проект сохранён как .Wrk файл`, '📦', 2000);
+});
+
+// Собрать .Ky файл
+document.getElementById('builder-export-ky')?.addEventListener('click', function() {
+    saveEditorCode();
+    
+    // Собираем полный HTML
+    let fullHtml = '';
+    if (builderState.appType === 'web' && builderState.url) {
+        fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${builderState.projectName}</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; height: 100vh; }
+        iframe { width: 100%; height: 100%; border: none; }
+    </style>
+</head>
+<body>
+    <iframe src="${builderState.url}"></iframe>
+</body>
+</html>`;
+    } else {
+        const css = builderState.cssCode || '';
+        const js = builderState.jsCode || '';
+        const html = builderState.htmlCode || '<h1>Моё приложение</h1>';
+        fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${builderState.projectName}</title>
+    <style>${css}</style>
+</head>
+<body>
+    ${html}
+    <script>${js}<\/script>
+</body>
+</html>`;
+    }
+    
+    // Добавляем K-OS API если разрешён доступ
+    if (builderState.allowFileAccess) {
+        const apiScript = `
 <script>
 window.KOS = {
-    saveFile: function(name, dataUrl) {
-        window.parent.postMessage({ action: 'saveFile', name: name, dataUrl: dataUrl }, '*');
+    saveFile: function(name, data) {
+        try {
+            const dataUrl = typeof data === 'string' ? data : JSON.stringify(data);
+            window.parent.postMessage({ 
+                action: 'saveFile', 
+                name: name, 
+                dataUrl: dataUrl 
+            }, '*');
+            return true;
+        } catch(e) {
+            console.error('KOS.saveFile error:', e);
+            return false;
+        }
     },
-    saveToDesktop: function(name, dataUrl) {
-        window.parent.postMessage({ action: 'saveToDesktop', name: name, dataUrl: dataUrl }, '*');
+    saveToDesktop: function(name, data) {
+        try {
+            const dataUrl = typeof data === 'string' ? data : JSON.stringify(data);
+            window.parent.postMessage({ 
+                action: 'saveToDesktop', 
+                name: name, 
+                dataUrl: dataUrl 
+            }, '*');
+            return true;
+        } catch(e) {
+            console.error('KOS.saveToDesktop error:', e);
+            return false;
+        }
     },
     getFiles: function() {
         return new Promise(function(resolve) {
-            window.parent.postMessage({ action: 'getFiles' }, '*');
-            window.addEventListener('message', function handler(e) {
+            const handler = function(e) {
                 if (e.data.action === 'filesList') {
                     window.removeEventListener('message', handler);
                     resolve(e.data.files);
                 }
-            });
+            };
+            window.addEventListener('message', handler);
+            window.parent.postMessage({ action: 'getFiles' }, '*');
+            setTimeout(() => {
+                window.removeEventListener('message', handler);
+                resolve([]);
+            }, 5000);
         });
     }
 };
 <\/script>
-${code}`;
-        iframe.srcdoc = apiCode;
+`;
+        fullHtml = fullHtml.replace('</body>', apiScript + '</body>');
     }
-}
+    
+    const blob = new Blob([fullHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${builderState.projectName || 'приложение'}.Ky`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showNotification('Собрано', `Приложение "${builderState.projectName}" готово (.Ky)`, '🚀', 2000);
+});
 
-function saveAppToDesktop() {
-    const name = document.getElementById('builder-app-name').value.trim() || 'мое_приложение';
-    const code = document.getElementById('builder-html-code').value.trim();
-    const url = document.getElementById('builder-app-url').value.trim();
-    const content = url || code;
-    if (!content) return alert('Введи URL или HTML код');
-    currentDesktopItems.push({
-        id: Date.now() + Math.random(),
-        name: name + '.exe',
-        type: 'file',
-        content: content
-    });
-    renderDesktop();
-    saveToFirebase();
-    Swal.fire({ title: 'Сохранено!', timer: 1200, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
-}
-
-function installApp() {
-    const name = document.getElementById('builder-app-name').value.trim() || 'мое_приложение';
-    const code = document.getElementById('builder-html-code').value.trim();
-    const url = document.getElementById('builder-app-url').value.trim();
-    const content = url || code;
-    if (!content) return alert('Введи URL или HTML код');
-    pinnedApps.push({
-        id: 'app-' + Date.now(),
-        title: name,
-        icon: 'fa-window-maximize',
-        type: 'webapp',
-        content: content
-    });
-    saveToFirebase();
-    renderTaskbar();
-    Swal.fire({ title: 'Установлено!', text: 'Приложение в таскбаре', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
-}
-
-window.addEventListener('message', (e) => {
-    if (e.data.action === 'saveFile' || e.data.action === 'saveToDesktop') {
-        const { name, dataUrl } = e.data;
-        currentDesktopItems.push({
-            id: Date.now() + Math.random(),
-            name: name || 'файл.png',
-            type: 'file',
-            content: dataUrl
-        });
-        renderDesktop();
-        saveToFirebase();
-        Swal.fire({ title: 'Файл сохранён!', timer: 1200, showConfirmButton: false, background: '#1a1a2e', color: '#fff' });
-    }
-    if (e.data.action === 'getFiles') {
-        e.source.postMessage({
-            action: 'filesList',
-            files: currentDesktopItems.map(f => ({ name: f.name, type: f.type, id: f.id }))
-        }, '*');
+// Тест приложения
+document.getElementById('builder-test')?.addEventListener('click', function() {
+    saveEditorCode();
+    if (builderState.appType === 'web' && builderState.url) {
+        window.open(builderState.url, '_blank');
+    } else {
+        renderBuilderView('preview');
+        setTimeout(refreshPreview, 100);
     }
 });
 
+// Установить приложение
+document.getElementById('builder-install')?.addEventListener('click', function() {
+    saveEditorCode();
+    
+    const icon = builderState.icon || 'fa-window-maximize';
+    const name = builderState.projectName;
+    let content = '';
+    
+    if (builderState.appType === 'web' && builderState.url) {
+        content = builderState.url;
+    } else {
+        const css = builderState.cssCode || '';
+        const js = builderState.jsCode || '';
+        const html = builderState.htmlCode || '<h1>Моё приложение</h1>';
+        content = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${name}</title>
+    <style>${css}</style>
+</head>
+<body>
+    ${html}
+    <script>${js}<\/script>
+</body>
+</html>`;
+    }
+    
+    // Добавляем в закреплённые приложения
+    pinnedApps.push({
+        id: 'app-' + Date.now(),
+        title: name,
+        icon: icon,
+        type: 'webapp',
+        content: content,
+        allowFileAccess: builderState.allowFileAccess
+    });
+    
+    saveToFirebase();
+    renderTaskbar();
+    showNotification('Установлено', `Приложение "${name}" добавлено в панель задач`, '📌', 2000);
+});
+
+// Загрузить проект
+document.getElementById('builder-load')?.addEventListener('click', function() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.Wrk,.Ky';
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            try {
+                const content = ev.target.result;
+                
+                // Пробуем парсить как JSON (.Wrk)
+                try {
+                    const data = JSON.parse(content);
+                    if (data.version && data.name) {
+                        // Загружаем проект
+                        builderState.projectName = data.name || 'Проект';
+                        builderState.appType = data.type || 'editor';
+                        builderState.url = data.url || '';
+                        builderState.htmlCode = data.html || '';
+                        builderState.cssCode = data.css || '';
+                        builderState.jsCode = data.js || '';
+                        builderState.icon = data.icon || '';
+                        builderState.allowFileAccess = data.allowFileAccess || false;
+                        
+                        showNotification('Загружено', `Проект "${builderState.projectName}" загружен`, '📂', 2000);
+                        renderBuilderView('editor');
+                        return;
+                    }
+                } catch(jsonError) {
+                    // Не JSON - пробуем как HTML (.Ky)
+                    if (content.includes('<!DOCTYPE') || content.includes('<html')) {
+                        builderState.htmlCode = content;
+                        builderState.projectName = file.name.replace(/\.Ky$/i, '').replace(/\.html$/i, '');
+                        builderState.appType = 'editor';
+                        showNotification('Загружено', `Приложение "${builderState.projectName}" загружено как проект`, '📂', 2000);
+                        renderBuilderView('editor');
+                        return;
+                    }
+                }
+                
+                showNotification('Ошибка', 'Не удалось загрузить файл', '❌', 2000);
+            } catch(e) {
+                showNotification('Ошибка', 'Неверный формат файла', '❌', 2000);
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+});
+
+// ================================================================
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+// ================================================================
+
+// Добавление проекта в недавние
+function addRecentProject(project) {
+    // Проверяем дубликаты
+    const existingIndex = builderState.recentProjects.findIndex(p => 
+        p.name === project.name && p.type === project.type
+    );
+    if (existingIndex !== -1) {
+        builderState.recentProjects.splice(existingIndex, 1);
+    }
+    builderState.recentProjects.unshift(project);
+    if (builderState.recentProjects.length > 20) {
+        builderState.recentProjects = builderState.recentProjects.slice(0, 20);
+    }
+    updateRecentProjects();
+    saveBuilderState();
+}
+
+// Обновление списка недавних проектов
+function updateRecentProjects() {
+    const list = document.getElementById('recent-projects-list');
+    if (!list) return;
+    
+    if (builderState.recentProjects.length === 0) {
+        list.innerHTML = '<div style="font-size:12px;opacity:0.3;padding:8px;">Нет проектов</div>';
+        return;
+    }
+    
+    list.innerHTML = builderState.recentProjects.slice(0, 5).map(p => `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:12px;transition:all 0.2s;" 
+             onmouseover="this.style.background='rgba(255,255,255,0.06)'" 
+             onmouseout="this.style.background='none'"
+             onclick="loadRecentProject('${p.name}')">
+            <i class="fas ${p.type === 'web' ? 'fa-globe' : 'fa-code'}" style="font-size:12px;opacity:0.5;"></i>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
+            <span style="font-size:10px;opacity:0.3;">${new Date(p.timestamp).toLocaleDateString()}</span>
+        </div>
+    `).join('');
+}
+
+// Загрузка недавнего проекта
+function loadRecentProject(name) {
+    const project = builderState.recentProjects.find(p => p.name === name);
+    if (!project) return;
+    
+    builderState.projectName = project.name;
+    builderState.appType = project.type;
+    builderState.url = project.url || '';
+    builderState.htmlCode = project.html || '';
+    builderState.cssCode = project.css || '';
+    builderState.jsCode = project.js || '';
+    builderState.icon = project.icon || '';
+    
+    if (project.type === 'web') {
+        renderBuilderView('webapp');
+        document.getElementById('builder-url-input').value = project.url || '';
+        document.getElementById('builder-web-name').value = project.name;
+        document.getElementById('builder-web-icon').value = project.icon || '';
+    } else {
+        renderBuilderView('editor');
+        // Обновляем редакторы
+        const htmlEditor = document.getElementById('editor-html');
+        const cssEditor = document.getElementById('editor-css');
+        const jsEditor = document.getElementById('editor-js');
+        const nameInput = document.getElementById('builder-editor-name');
+        const iconInput = document.getElementById('builder-editor-icon');
+        if (htmlEditor) htmlEditor.value = project.html || '';
+        if (cssEditor) cssEditor.value = project.css || '';
+        if (jsEditor) jsEditor.value = project.js || '';
+        if (nameInput) nameInput.value = project.name;
+        if (iconInput) iconInput.value = project.icon || '';
+    }
+    
+    showNotification('Загружено', `Проект "${project.name}" загружен`, '📂', 1500);
+}
+
+// Загрузка примера проекта
+function loadExampleProject() {
+    builderState.projectName = 'Todo-приложение';
+    builderState.appType = 'editor';
+    builderState.htmlCode = `
+<div class="todo-app">
+    <h1>📝 Мои задачи</h1>
+    <div class="todo-input">
+        <input type="text" id="todo-input" placeholder="Добавить задачу..." onkeypress="if(event.key==='Enter') addTodo()">
+        <button onclick="addTodo()">➕</button>
+    </div>
+    <ul id="todo-list"></ul>
+</div>`;
+    builderState.cssCode = `
+.todo-app {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px;
+}
+.todo-app h1 {
+    text-align: center;
+    color: #667eea;
+}
+.todo-input {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+.todo-input input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+    color: white;
+    font-size: 14px;
+    outline: none;
+}
+.todo-input input:focus {
+    border-color: #667eea;
+}
+.todo-input button {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    font-size: 18px;
+}
+#todo-list {
+    list-style: none;
+    padding: 0;
+}
+#todo-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+#todo-list li:hover {
+    background: rgba(255,255,255,0.08);
+}
+#todo-list li.done {
+    text-decoration: line-through;
+    opacity: 0.4;
+}
+#todo-list li .delete-btn {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+}`;
+    builderState.jsCode = `
+let todos = [];
+
+function addTodo() {
+    const input = document.getElementById('todo-input');
+    const text = input.value.trim();
+    if (!text) return;
+    todos.push({ text: text, done: false });
+    input.value = '';
+    renderTodos();
+}
+
+function toggleTodo(index) {
+    todos[index].done = !todos[index].done;
+    renderTodos();
+}
+
+function deleteTodo(index) {
+    todos.splice(index, 1);
+    renderTodos();
+}
+
+function renderTodos() {
+    const list = document.getElementById('todo-list');
+    list.innerHTML = todos.map((todo, i) => 
+        '<li class="' + (todo.done ? 'done' : '') + '" onclick="toggleTodo(' + i + ')">' +
+            todo.text +
+            '<button class="delete-btn" onclick="event.stopPropagation(); deleteTodo(' + i + ')">✕</button>' +
+        '</li>'
+    ).join('');
+}`;
+    builderState.icon = '';
+    builderState.allowFileAccess = false;
+    
+    // Сохраняем в недавние
+    addRecentProject({
+        name: builderState.projectName,
+        type: 'editor',
+        html: builderState.htmlCode,
+        css: builderState.cssCode,
+        js: builderState.jsCode,
+        timestamp: Date.now()
+    });
+    
+    renderBuilderView('editor');
+    // Заполняем редакторы
+    setTimeout(() => {
+        const htmlEditor = document.getElementById('editor-html');
+        const cssEditor = document.getElementById('editor-css');
+        const jsEditor = document.getElementById('editor-js');
+        const nameInput = document.getElementById('builder-editor-name');
+        if (htmlEditor) htmlEditor.value = builderState.htmlCode;
+        if (cssEditor) cssEditor.value = builderState.cssCode;
+        if (jsEditor) jsEditor.value = builderState.jsCode;
+        if (nameInput) nameInput.value = builderState.projectName;
+    }, 100);
+    
+    showNotification('Загружено', 'Пример Todo-приложения готов', '📖', 2000);
+}
+
+// Очистка данных конструктора
+function clearBuilderData() {
+    Swal.fire({
+        title: 'Очистить все проекты?',
+        text: 'Это действие нельзя отменить',
+        icon: 'warning',
+        background: '#1a1a2e',
+        color: '#fff',
+        showCancelButton: true,
+        confirmButtonText: 'Очистить',
+        cancelButtonText: 'Отмена'
+    }).then(result => {
+        if (result.isConfirmed) {
+            builderState.recentProjects = [];
+            saveBuilderState();
+            updateRecentProjects();
+            showNotification('Очищено', 'Все проекты удалены', '🗑️', 2000);
+        }
+    });
+}
+
+// Установка темы редактора
+function setEditorTheme(theme) {
+    document.querySelectorAll('.builder-textarea').forEach(el => {
+        if (theme === 'light') {
+            el.style.background = 'rgba(255,255,255,0.9)';
+            el.style.color = '#1a1a2e';
+        } else {
+            el.style.background = 'rgba(0,0,0,0.3)';
+            el.style.color = '#e0e0e0';
+        }
+    });
+    showNotification('Тема изменена', theme === 'light' ? '☀️ Светлая' : '🌙 Тёмная', '🎨', 1500);
+}
+
+// ================================================================
+// ===== ИНИЦИАЛИЗАЦИЯ =====
+// ================================================================
+
+// Навигация по конструктору
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.builder-nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            renderBuilderView(item.dataset.view);
+        });
+    });
+    
+    // Размер шрифта
+    const fontSizeSlider = document.getElementById('editor-font-size');
+    if (fontSizeSlider) {
+        fontSizeSlider.addEventListener('input', function() {
+            document.getElementById('font-size-label').textContent = this.value + 'px';
+        });
+    }
+    
+    // Предзагрузка
+    loadBuilderState();
+});
+
+console.log('✅ Конструктор приложений v2.0 загружен!');
+console.log('📦 Поддерживает: .Wrk (проект) и .Ky (приложение)');
+console.log('🔗 API: window.KOS.saveFile(), window.KOS.getFiles()');
 // ===== ЗАПУСК ПРИЛОЖЕНИЙ (ПЕРЕОПРЕДЕЛЕНИЕ) =====
 // Проверяем, существует ли launchApp, если нет — создаём заглушку
 if (typeof launchApp !== 'undefined') {
