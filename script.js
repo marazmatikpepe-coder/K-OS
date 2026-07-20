@@ -2142,17 +2142,35 @@ function saveWebApp() {
     showNotification('Сохранено', `"${AppBuilder.name}" готов`, '✅', 1500);
 }
 
-function saveWrk() {
+function saveWrk(target) {
     syncEditorFields();
     if (!AppBuilder.name) { showNotification('Ошибка','Укажи название','❌',1500); return; }
-    downloadFile(JSON.stringify({version:'4.0', ...AppBuilder}, null, 2), `${AppBuilder.name}.Wrk`, 'application/json');
-    showNotification('Экспорт', `"${AppBuilder.name}.Wrk" сохранён`, '📦', 1500);
+    const data = JSON.stringify({version:'4.0', ...AppBuilder}, null, 2);
+    const filename = `${AppBuilder.name}.Wrk`;
+    if (target === 'desktop') {
+        currentDesktopItems.push({ id: Date.now() + Math.random(), name: filename, type: 'file', content: data });
+        renderDesktop();
+        saveToFirebase();
+        showNotification('Сохранено', `"${filename}" на рабочем столе`, '🖥️', 1500);
+    } else {
+        downloadFile(data, filename, 'application/json');
+        showNotification('Сохранено', `"${filename}" скачан`, '📦', 1500);
+    }
 }
 
-function exportKy() {
+function exportKy(target) {
     syncEditorFields();
-    downloadFile(buildHtml(), `${AppBuilder.name}.Ky`, 'text/html');
-    showNotification('Готово', `"${AppBuilder.name}.Ky" создан`, '🚀', 1500);
+    const html = buildHtml();
+    const filename = `${AppBuilder.name}.Ky`;
+    if (target === 'desktop') {
+        currentDesktopItems.push({ id: Date.now() + Math.random(), name: filename, type: 'file', content: html });
+        renderDesktop();
+        saveToFirebase();
+        showNotification('Готово', `"${filename}" на рабочем столе`, '🖥️', 1500);
+    } else {
+        downloadFile(html, filename, 'text/html');
+        showNotification('Готово', `"${filename}" скачан`, '🚀', 1500);
+    }
 }
 
 function testApp() {
@@ -3000,6 +3018,15 @@ document.addEventListener('input', (e) => {
     _builderAutosaveTimer = setTimeout(() => {
         if (typeof saveBuilderCode === 'function') saveBuilderCode();
     }, 1500);
+});
+document.querySelectorAll('.b-save-wrap').forEach(wrap => {
+    const menu = wrap.querySelector('.b-save-menu');
+    wrap.addEventListener('mouseenter', () => menu.style.display = 'block');
+    wrap.addEventListener('mouseleave', () => menu.style.display = 'none');
+});
+document.querySelectorAll('.b-save-item').forEach(item => {
+    item.addEventListener('mouseenter', () => item.style.background = 'rgba(255,255,255,0.08)');
+    item.addEventListener('mouseleave', () => item.style.background = 'transparent');
 });
 // Инициализация конструктора
 loadBuilderData();
