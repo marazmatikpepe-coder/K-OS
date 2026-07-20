@@ -3396,7 +3396,47 @@ function setAvatar(dataUrl) {
     saveToFirebase();
     if (dataUrl.startsWith('data:image')) syncImageToCloud(dataUrl, 'avatar');
 }
+// ================================================================
+// ===== ЭКСПОРТ КОНСТРУКТОРА ПРИЛОЖЕНИЙ В window (для onclick) =====
+// ================================================================
+Object.assign(window, {
+    openAppBuilder2, closeBuilder, renderBuilderView,
+    saveBuilderWeb, previewBuilderWeb,
+    saveWrk, exportKy, testApp, installApp,
+    loadProject, loadExample,
+    refreshBuilderPreview, loadBuilderRecent
+});
 
+// ===== ФИКС НАВИГАЦИИ В САЙДБАРЕ КОНСТРУКТОРА =====
+// (делегирование клика вместо битого onclick/класса)
+document.addEventListener('click', (e) => {
+    const nav = e.target.closest('.builder-nav');
+    if (!nav) return;
+    renderBuilderView(nav.dataset.view);
+});
+
+// подсветка активного пункта — теперь работает на правильном классе
+const _origRenderBuilderView = renderBuilderView;
+renderBuilderView = function(view) {
+    _origRenderBuilderView(view);
+    document.querySelectorAll('.builder-nav').forEach(el => {
+        const active = el.dataset.view === view;
+        el.style.background = active ? 'rgba(102,126,234,0.2)' : 'transparent';
+        el.style.color = active ? 'white' : 'rgba(255,255,255,0.6)';
+        el.style.border = active ? '1px solid rgba(102,126,234,0.3)' : 'none';
+    });
+};
+window.renderBuilderView = renderBuilderView;
+
+// ===== АВТОСОХРАНЕНИЕ ЧЕРЕЗ 1.5с ПОСЛЕ ПРАВОК В РЕДАКТОРЕ =====
+let _builderAutosaveTimer = null;
+document.addEventListener('input', (e) => {
+    if (!e.target.matches('#b-html, #b-css, #b-js')) return;
+    clearTimeout(_builderAutosaveTimer);
+    _builderAutosaveTimer = setTimeout(() => {
+        if (typeof saveBuilderCode === 'function') saveBuilderCode();
+    }, 1500);
+});
 // Инициализация конструктора
 loadBuilderData();
 updateBuilderRecent();
