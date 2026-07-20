@@ -346,9 +346,26 @@
 
     <!-- НИЖНЯЯ ПАНЕЛЬ -->
     <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;flex-wrap:wrap;background:rgba(0,0,0,0.15);flex-shrink:0;">
-        <button class="builder-btn" style="padding:7px 16px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.08);" onclick="saveWrk()"><i class="fas fa-save"></i> Сохранить .Wrk</button>
-        <button class="builder-btn" style="padding:7px 16px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:6px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;" onclick="exportKy()"><i class="fas fa-rocket"></i> Собрать .Ky</button>
         <button class="builder-btn" style="padding:7px 16px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.08);" onclick="testApp()"><i class="fas fa-play"></i> Тест</button>
+        <div class="b-save-wrap" style="position:relative;display:inline-block;">
+    <button class="builder-btn" style="padding:7px 16px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.08);">
+        <i class="fas fa-save"></i> Сохранить .Wrk
+    </button>
+    <div class="b-save-menu" style="display:none;position:absolute;bottom:110%;left:0;min-width:220px;background:rgba(20,20,35,0.97);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:6px;z-index:100;">
+        <div class="b-save-item" onclick="saveWrk('desktop')" style="padding:9px 12px;border-radius:6px;cursor:pointer;font-size:12px;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:8px;"><i class="fas fa-desktop"></i> На виртуальный рабочий стол</div>
+        <div class="b-save-item" onclick="saveWrk('device')" style="padding:9px 12px;border-radius:6px;cursor:pointer;font-size:12px;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:8px;"><i class="fas fa-download"></i> На устройство</div>
+    </div>
+</div>
+
+<div class="b-save-wrap" style="position:relative;display:inline-block;">
+    <button class="builder-btn" style="padding:7px 16px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;">
+        <i class="fas fa-rocket"></i> Собрать .Ky
+    </button>
+    <div class="b-save-menu" style="display:none;position:absolute;bottom:110%;left:0;min-width:220px;background:rgba(20,20,35,0.97);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:6px;z-index:100;">
+        <div class="b-save-item" onclick="exportKy('desktop')" style="padding:9px 12px;border-radius:6px;cursor:pointer;font-size:12px;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:8px;"><i class="fas fa-desktop"></i> На виртуальный рабочий стол</div>
+        <div class="b-save-item" onclick="exportKy('device')" style="padding:9px 12px;border-radius:6px;cursor:pointer;font-size:12px;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:8px;"><i class="fas fa-download"></i> На устройство</div>
+    </div>
+</div>
         <button class="builder-btn" style="padding:7px 16px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:6px;background:rgba(78,205,196,0.15);color:#4ecdc4;border:1px solid rgba(78,205,196,0.2);" onclick="installApp()"><i class="fas fa-download"></i> Установить</button>
         <button class="builder-btn" style="padding:7px 16px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.08);" onclick="loadProject()"><i class="fas fa-folder-open"></i> Загрузить</button>
         <button class="builder-btn" style="padding:7px 16px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:6px;background:rgba(255,170,68,0.1);color:#ffaa44;border:1px solid rgba(255,170,68,0.2);" onclick="loadExample()"><i class="fas fa-star"></i> Пример</button>
