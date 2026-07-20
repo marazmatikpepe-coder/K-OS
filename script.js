@@ -2302,7 +2302,9 @@ function saveFile() {
 }
 
 function saveBuilderCode() {
-    AppBuilder.html = document.getElementById('b-html').value;
+    const htmlEl = document.getElementById('b-html');
+    if (!htmlEl) return; // не в режиме редактора — сохранять нечего
+    AppBuilder.html = htmlEl.value;
     AppBuilder.css = document.getElementById('b-css').value;
     AppBuilder.js = document.getElementById('b-js').value;
     AppBuilder.name = document.getElementById('b-editor-name').value.trim() || AppBuilder.name;
