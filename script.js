@@ -1977,11 +1977,11 @@ function floodFill(x, y, fillColor) {
 }
 
 // ================================================================
-// ===== КОНСТРУКТОР ПРИЛОЖЕНИЙ v3.0 =====
+// ===== КОНСТРУКТОР ПРИЛОЖЕНИЙ v3.0 (ОБЪЕДИНЕННАЯ ВЕРСИЯ) =====
 // ================================================================
 
-// СОСТОЯНИЕ
-const B = {
+// СОСТОЯНИЕ (ЕДИНСТВЕННОЕ ОБЪЯВЛЕНИЕ)
+const AppBuilder = {
     view: 'welcome',
     name: 'Моё приложение',
     type: 'editor',
@@ -1995,73 +1995,71 @@ const B = {
     isModified: false
 };
 
-// ЗАГРУЗКА СОХРАНЁННЫХ ДАННЫХ
-function loadBData() {
+// ЗАГРУЗКА ДАННЫХ
+function loadBuilderData() {
     try {
-        const saved = localStorage.getItem('builder_data');
+        const saved = localStorage.getItem('builder_data_v3') || localStorage.getItem('builder_data');
         if (saved) {
             const data = JSON.parse(saved);
-            B.recent = data.recent || [];
+            AppBuilder.recent = data.recent || [];
             if (data.current) {
-                B.name = data.current.name || B.name;
-                B.type = data.current.type || B.type;
-                B.url = data.current.url || '';
-                B.html = data.current.html || '';
-                B.css = data.current.css || '';
-                B.js = data.current.js || '';
-                B.icon = data.current.icon || '';
-                B.allowFiles = data.current.allowFiles || false;
+                AppBuilder.name = data.current.name || AppBuilder.name;
+                AppBuilder.type = data.current.type || AppBuilder.type;
+                AppBuilder.url = data.current.url || '';
+                AppBuilder.html = data.current.html || '';
+                AppBuilder.css = data.current.css || '';
+                AppBuilder.js = data.current.js || '';
+                AppBuilder.icon = data.current.icon || '';
+                AppBuilder.allowFiles = data.current.allowFiles || false;
             }
         }
-    } catch(e) {}
+    } catch(e) { console.log('Load builder error:', e); }
 }
 
 // СОХРАНЕНИЕ ДАННЫХ
-function saveBData() {
+function saveBuilderData() {
     try {
-        localStorage.setItem('builder_data', JSON.stringify({
-            recent: B.recent,
+        const data = {
+            recent: AppBuilder.recent,
             current: {
-                name: B.name,
-                type: B.type,
-                url: B.url,
-                html: B.html,
-                css: B.css,
-                js: B.js,
-                icon: B.icon,
-                allowFiles: B.allowFiles
+                name: AppBuilder.name,
+                type: AppBuilder.type,
+                url: AppBuilder.url,
+                html: AppBuilder.html,
+                css: AppBuilder.css,
+                js: AppBuilder.js,
+                icon: AppBuilder.icon,
+                allowFiles: AppBuilder.allowFiles
             }
-        }));
-    } catch(e) {}
+        };
+        localStorage.setItem('builder_data_v3', JSON.stringify(data));
+        localStorage.setItem('builder_data', JSON.stringify(data));
+    } catch(e) { console.log('Save builder error:', e); }
 }
 
 // ОТКРЫТИЕ КОНСТРУКТОРА
 function openAppBuilder2() {
+    console.log('🔧 Открываем конструктор...');
     const win = document.getElementById('app-builder-window');
-    if (!win) return;
+    if (!win) {
+        console.error('❌ Окно конструктора не найдено!');
+        return;
+    }
     win.style.display = 'flex';
-    loadBData();
-    renderBView('welcome');
-    updateBRecent();
+    loadBuilderData();
+    renderBuilderView('welcome');
+    updateBuilderRecent();
+    console.log('✅ Конструктор открыт');
 }
 
-// ЗАКРЫТИЕ
 function closeBuilder() {
-    document.getElementById('app-builder-window').style.display = 'none';
+    const win = document.getElementById('app-builder-window');
+    if (win) win.style.display = 'none';
 }
 
-// НАВИГАЦИЯ
-document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.bnav-item').forEach(el => {
-        el.addEventListener('click', () => {
-            renderBView(el.dataset.view);
-        });
-    });
-});
-
-// РЕНДЕР ВЬЮХИ
-function renderBView(view) {
-    B.view = view;
+// РЕНДЕР
+function renderBuilderView(view) {
+    AppBuilder.view = view;
     const content = document.getElementById('builder-content');
     if (!content) return;
 
@@ -2070,16 +2068,16 @@ function renderBView(view) {
     });
 
     switch(view) {
-        case 'welcome': renderBWelcome(content); break;
-        case 'web': renderBWeb(content); break;
-        case 'editor': renderBEditor(content); break;
-        case 'preview': renderBPreview(content); break;
+        case 'welcome': renderBuilderWelcome(content); break;
+        case 'web': renderBuilderWeb(content); break;
+        case 'editor': renderBuilderEditor(content); break;
+        case 'preview': renderBuilderPreview(content); break;
         default: content.innerHTML = '<p style="opacity:0.4;">Выберите раздел</p>';
     }
 }
 
 // ===== ГЛАВНАЯ =====
-function renderBWelcome(content) {
+function renderBuilderWelcome(content) {
     content.innerHTML = `
         <div style="max-width:900px;margin:0 auto;padding:10px 0;">
             <div style="text-align:center;padding:10px 0 20px;">
@@ -2088,26 +2086,26 @@ function renderBWelcome(content) {
                 <p style="opacity:0.5;font-size:14px;margin-top:6px;">Выберите способ создания или откройте проект</p>
             </div>
 
-            <div class="b-grid">
-                <div class="b-card" style="cursor:pointer;transition:all 0.3s;" onclick="renderBView('web')" onmouseover="this.style.borderColor='#667eea';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;cursor:pointer;transition:all 0.3s;" onclick="renderBuilderView('web')" onmouseover="this.style.borderColor='#667eea';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
                     <div style="font-size:28px;margin-bottom:8px;">🌐</div>
                     <h3 style="margin-bottom:6px;font-size:16px;">Веб-сайт</h3>
                     <p style="opacity:0.4;font-size:12px;">Создайте обёртку для любого сайта</p>
                 </div>
 
-                <div class="b-card" style="cursor:pointer;transition:all 0.3s;" onclick="renderBView('editor')" onmouseover="this.style.borderColor='#667eea';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
+                <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;cursor:pointer;transition:all 0.3s;" onclick="renderBuilderView('editor')" onmouseover="this.style.borderColor='#667eea';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
                     <div style="font-size:28px;margin-bottom:8px;">💻</div>
                     <h3 style="margin-bottom:6px;font-size:16px;">Редактор кода</h3>
                     <p style="opacity:0.4;font-size:12px;">Напишите HTML/CSS/JS с нуля</p>
                 </div>
 
-                <div class="b-card" style="cursor:pointer;transition:all 0.3s;" onclick="loadProject()" onmouseover="this.style.borderColor='#4ecdc4';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
+                <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;cursor:pointer;transition:all 0.3s;" onclick="loadProject()" onmouseover="this.style.borderColor='#4ecdc4';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
                     <div style="font-size:28px;margin-bottom:8px;">📂</div>
                     <h3 style="margin-bottom:6px;font-size:16px;">Открыть проект</h3>
                     <p style="opacity:0.4;font-size:12px;">Загрузите .Wrk или .Ky файл</p>
                 </div>
 
-                <div class="b-card" style="cursor:pointer;transition:all 0.3s;" onclick="loadExample()" onmouseover="this.style.borderColor='#ffaa44';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
+                <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;cursor:pointer;transition:all 0.3s;" onclick="loadExample()" onmouseover="this.style.borderColor='#ffaa44';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
                     <div style="font-size:28px;margin-bottom:8px;">📖</div>
                     <h3 style="margin-bottom:6px;font-size:16px;">Пример проекта</h3>
                     <p style="opacity:0.4;font-size:12px;">Todo-приложение для старта</p>
@@ -2116,37 +2114,37 @@ function renderBWelcome(content) {
 
             <div style="margin-top:20px;padding:14px;background:rgba(255,255,255,0.03);border-radius:12px;border:1px dashed rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <span style="font-size:12px;opacity:0.5;"><i class="fas fa-info-circle" style="color:#667eea;"></i> Проекты сохраняются автоматически</span>
-                <span style="font-size:11px;opacity:0.3;">${B.recent.length} проектов</span>
+                <span style="font-size:11px;opacity:0.3;">${AppBuilder.recent.length} проектов</span>
             </div>
         </div>
     `;
 }
 
 // ===== ВЕБ-САЙТ =====
-function renderBWeb(content) {
+function renderBuilderWeb(content) {
     content.innerHTML = `
         <div style="max-width:700px;margin:0 auto;">
             <h2 style="margin-bottom:16px;font-size:22px;">🌐 Веб-приложение</h2>
             
-            <div class="b-card">
-                <div class="b-card-title"><i class="fas fa-link" style="color:#667eea;"></i> URL</div>
-                <input class="b-input" id="b-web-url" placeholder="https://example.com" value="${B.url}">
+            <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;margin-bottom:14px;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><i class="fas fa-link" style="color:#667eea;"></i> URL</div>
+                <input class="b-input" id="b-web-url" placeholder="https://example.com" value="${AppBuilder.url}" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:white;font-size:14px;outline:none;">
             </div>
 
-            <div class="b-card">
-                <div class="b-card-title"><i class="fas fa-tag" style="color:#4ecdc4;"></i> Название</div>
-                <input class="b-input" id="b-web-name" placeholder="Название приложения" value="${B.name}">
+            <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;margin-bottom:14px;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><i class="fas fa-tag" style="color:#4ecdc4;"></i> Название</div>
+                <input class="b-input" id="b-web-name" placeholder="Название приложения" value="${AppBuilder.name}" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:white;font-size:14px;outline:none;">
             </div>
 
-            <div class="b-card">
-                <div class="b-card-title"><i class="fas fa-image" style="color:#ffaa44;"></i> Иконка (URL)</div>
-                <input class="b-input" id="b-web-icon" placeholder="https://example.com/icon.png" value="${B.icon}">
+            <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;margin-bottom:14px;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><i class="fas fa-image" style="color:#ffaa44;"></i> Иконка (URL)</div>
+                <input class="b-input" id="b-web-icon" placeholder="https://example.com/icon.png" value="${AppBuilder.icon}" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:white;font-size:14px;outline:none;">
             </div>
 
-            <div class="b-card">
-                <div class="b-card-title"><i class="fas fa-shield-alt" style="color:#4ecdc4;"></i> Доступ к файлам</div>
+            <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;margin-bottom:14px;">
+                <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><i class="fas fa-shield-alt" style="color:#4ecdc4;"></i> Доступ к файлам</div>
                 <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-                    <input type="checkbox" id="b-web-files" ${B.allowFiles ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
+                    <input type="checkbox" id="b-web-files" ${AppBuilder.allowFiles ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
                     <span style="font-size:13px;">Разрешить отправку файлов в K-OS</span>
                 </label>
                 <div style="margin-top:6px;font-size:11px;opacity:0.3;padding:6px 10px;background:rgba(255,255,255,0.03);border-radius:6px;">
@@ -2155,52 +2153,47 @@ function renderBWeb(content) {
             </div>
 
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
-                <button class="b-btn primary" onclick="saveBWeb()"><i class="fas fa-check"></i> Применить</button>
-                <button class="b-btn secondary" onclick="previewBWeb()"><i class="fas fa-eye"></i> Предпросмотр</button>
+                <button class="b-btn primary" style="padding:8px 20px;border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;" onclick="saveBuilderWeb()"><i class="fas fa-check"></i> Применить</button>
+                <button class="b-btn secondary" style="padding:8px 20px;border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.08);" onclick="previewBuilderWeb()"><i class="fas fa-eye"></i> Предпросмотр</button>
             </div>
         </div>
     `;
 }
 
-function saveBWeb() {
-    B.url = document.getElementById('b-web-url').value.trim();
-    B.name = document.getElementById('b-web-name').value.trim() || 'Веб-приложение';
-    B.icon = document.getElementById('b-web-icon').value.trim();
-    B.allowFiles = document.getElementById('b-web-files').checked;
-    B.type = 'web';
-    B.isModified = true;
-    
-    addBRecent(B.name, 'web');
-    saveBData();
-    showNotification('Сохранено', `"${B.name}" готов`, '✅', 1500);
+function saveBuilderWeb() {
+    AppBuilder.url = document.getElementById('b-web-url').value.trim();
+    AppBuilder.name = document.getElementById('b-web-name').value.trim() || 'Веб-приложение';
+    AppBuilder.icon = document.getElementById('b-web-icon').value.trim();
+    AppBuilder.allowFiles = document.getElementById('b-web-files').checked;
+    AppBuilder.type = 'web';
+    AppBuilder.isModified = true;
+    addBuilderRecent(AppBuilder.name, 'web');
+    saveBuilderData();
+    showNotification('Сохранено', `"${AppBuilder.name}" готов`, '✅', 1500);
 }
 
-function previewBWeb() {
+function previewBuilderWeb() {
     const url = document.getElementById('b-web-url').value.trim();
     if (!url) { showNotification('Ошибка', 'Введите URL', '❌', 1500); return; }
-    const frame = document.getElementById('builder-preview-frame') || document.createElement('iframe');
-    frame.id = 'builder-preview-frame';
-    frame.style.cssText = 'width:100%;height:100%;border:none;background:white;';
-    renderBPreview();
+    renderBuilderView('preview');
     setTimeout(() => {
-        const f = document.getElementById('builder-preview-frame');
-        if (f) f.src = url;
-    }, 100);
+        const frame = document.getElementById('builder-preview-frame');
+        if (frame) frame.src = url;
+    }, 200);
 }
 
 // ===== РЕДАКТОР =====
-function renderBEditor(content) {
+function renderBuilderEditor(content) {
     content.innerHTML = `
         <div style="max-width:100%;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
                 <h2 style="font-size:20px;margin:0;">💻 Редактор кода</h2>
-                <div style="display:flex;gap:6px;">
-                    <input class="b-input" id="b-editor-name" placeholder="Название" value="${B.name}" style="width:180px;padding:6px 12px;font-size:13px;">
-                    <input class="b-input" id="b-editor-icon" placeholder="Иконка URL" value="${B.icon}" style="width:160px;padding:6px 12px;font-size:13px;">
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <input class="b-input" id="b-editor-name" placeholder="Название" value="${AppBuilder.name}" style="width:180px;padding:6px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:white;font-size:13px;outline:none;">
+                    <input class="b-input" id="b-editor-icon" placeholder="Иконка URL" value="${AppBuilder.icon}" style="width:160px;padding:6px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:white;font-size:13px;outline:none;">
                 </div>
             </div>
 
-            <!-- Вкладки -->
             <div style="display:flex;gap:2px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:0;">
                 <button class="b-tab active" data-tab="html" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid #667eea;transition:all 0.2s;">HTML</button>
                 <button class="b-tab" data-tab="css" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;transition:all 0.2s;">CSS</button>
@@ -2208,14 +2201,13 @@ function renderBEditor(content) {
                 <button class="b-tab" data-tab="preview" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;transition:all 0.2s;margin-left:auto;">👁 Предпросмотр</button>
             </div>
 
-            <!-- Редакторы -->
             <div id="b-editors" style="position:relative;">
-                <textarea class="b-textarea b-code-editor active" id="b-html" style="min-height:300px;display:block;">${B.html || `<!DOCTYPE html>
+                <textarea class="b-textarea b-code-editor active" id="b-html" style="width:100%;padding:14px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:10px;color:#e0e0e0;font-family:'Courier New',monospace;font-size:13px;line-height:1.6;resize:vertical;outline:none;min-height:300px;display:block;">${AppBuilder.html || `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${B.name}</title>
+    <title>${AppBuilder.name}</title>
     <style>
         /* Твой CSS здесь */
     </style>
@@ -2228,7 +2220,7 @@ function renderBEditor(content) {
     <\/script>
 </body>
 </html>`}</textarea>
-                <textarea class="b-textarea b-code-editor" id="b-css" style="min-height:300px;display:none;">${B.css || `body {
+                <textarea class="b-textarea b-code-editor" id="b-css" style="width:100%;padding:14px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:10px;color:#e0e0e0;font-family:'Courier New',monospace;font-size:13px;line-height:1.6;resize:vertical;outline:none;min-height:300px;display:none;">${AppBuilder.css || `body {
     background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
     color: white;
     font-family: Arial, sans-serif;
@@ -2247,7 +2239,7 @@ h1 {
     -webkit-text-fill-color: transparent;
 }
 p { opacity: 0.6; }`}</textarea>
-                <textarea class="b-textarea b-code-editor" id="b-js" style="min-height:300px;display:none;">${B.js || `// Твой JavaScript здесь
+                <textarea class="b-textarea b-code-editor" id="b-js" style="width:100%;padding:14px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:10px;color:#e0e0e0;font-family:'Courier New',monospace;font-size:13px;line-height:1.6;resize:vertical;outline:none;min-height:300px;display:none;">${AppBuilder.js || `// Твой JavaScript здесь
 console.log("Приложение запущено!");
 
 // Функция для сохранения файлов в K-OS
@@ -2269,19 +2261,18 @@ function saveFile() {
         </div>
     `;
 
-    // Переключение вкладок
     document.querySelectorAll('.b-tab').forEach(tab => {
-        tab.onclick = () => {
+        tab.onclick = function() {
             document.querySelectorAll('.b-tab').forEach(t => t.style.borderBottom = '2px solid transparent');
-            tab.style.borderBottom = '2px solid #667eea';
+            this.style.borderBottom = '2px solid #667eea';
             
-            const target = tab.dataset.tab;
+            const target = this.dataset.tab;
             document.querySelectorAll('.b-code-editor').forEach(el => el.style.display = 'none');
             document.getElementById('b-preview-area').style.display = 'none';
             
             if (target === 'preview') {
                 document.getElementById('b-preview-area').style.display = 'block';
-                previewBCode();
+                previewBuilderCode();
             } else {
                 const el = document.getElementById('b-' + target);
                 if (el) el.style.display = 'block';
@@ -2289,42 +2280,40 @@ function saveFile() {
         };
     });
 
-    // Горячие клавиши
     document.querySelectorAll('.b-code-editor').forEach(el => {
-        el.addEventListener('keydown', (e) => {
+        el.addEventListener('keydown', function(e) {
             if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
-                saveBCode();
+                saveBuilderCode();
                 showNotification('Сохранено', 'Код сохранён', '💾', 1000);
             }
             if (e.ctrlKey && e.shiftKey && e.key === 'P') {
                 e.preventDefault();
-                previewBCode();
+                previewBuilderCode();
             }
             if (e.key === 'Tab') {
                 e.preventDefault();
-                const start = el.selectionStart;
-                el.value = el.value.substring(0, start) + '    ' + el.value.substring(el.selectionEnd);
-                el.selectionStart = el.selectionEnd = start + 4;
+                const start = this.selectionStart;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(this.selectionEnd);
+                this.selectionStart = this.selectionEnd = start + 4;
             }
         });
     });
 }
 
-function saveBCode() {
-    B.html = document.getElementById('b-html').value;
-    B.css = document.getElementById('b-css').value;
-    B.js = document.getElementById('b-js').value;
-    B.name = document.getElementById('b-editor-name').value.trim() || B.name;
-    B.icon = document.getElementById('b-editor-icon').value.trim();
-    B.type = 'editor';
-    B.isModified = true;
-    
-    addBRecent(B.name, 'editor');
-    saveBData();
+function saveBuilderCode() {
+    AppBuilder.html = document.getElementById('b-html').value;
+    AppBuilder.css = document.getElementById('b-css').value;
+    AppBuilder.js = document.getElementById('b-js').value;
+    AppBuilder.name = document.getElementById('b-editor-name').value.trim() || AppBuilder.name;
+    AppBuilder.icon = document.getElementById('b-editor-icon').value.trim();
+    AppBuilder.type = 'editor';
+    AppBuilder.isModified = true;
+    addBuilderRecent(AppBuilder.name, 'editor');
+    saveBuilderData();
 }
 
-function previewBCode() {
+function previewBuilderCode() {
     const html = document.getElementById('b-html').value || '';
     const css = document.getElementById('b-css').value || '';
     const js = document.getElementById('b-js').value || '';
@@ -2338,7 +2327,6 @@ function previewBCode() {
     const frame = document.getElementById('b-preview-frame');
     if (frame) frame.srcdoc = full;
     
-    // Переключаем на вкладку предпросмотра
     document.querySelectorAll('.b-tab').forEach(t => t.style.borderBottom = '2px solid transparent');
     const previewTab = document.querySelector('.b-tab[data-tab="preview"]');
     if (previewTab) previewTab.style.borderBottom = '2px solid #667eea';
@@ -2347,14 +2335,13 @@ function previewBCode() {
 }
 
 // ===== ПРЕДПРОСМОТР =====
-function renderBPreview(content) {
+function renderBuilderPreview(content) {
     content.innerHTML = `
         <div style="max-width:100%;height:100%;display:flex;flex-direction:column;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                 <h2 style="font-size:20px;margin:0;">👁 Предпросмотр</h2>
                 <div style="display:flex;gap:6px;">
-                    <button class="b-btn secondary" onclick="refreshBPreview()"><i class="fas fa-sync-alt"></i> Обновить</button>
-                    <button class="b-btn secondary" onclick="openBFullscreen()"><i class="fas fa-expand"></i> На весь</button>
+                    <button class="b-btn secondary" style="padding:6px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.08);" onclick="refreshBuilderPreview()"><i class="fas fa-sync-alt"></i> Обновить</button>
                 </div>
             </div>
             <div style="flex:1;background:white;border-radius:14px;overflow:hidden;min-height:400px;">
@@ -2362,86 +2349,76 @@ function renderBPreview(content) {
             </div>
         </div>
     `;
-    refreshBPreview();
+    refreshBuilderPreview();
 }
 
-function refreshBPreview() {
+function refreshBuilderPreview() {
     const frame = document.getElementById('builder-preview-frame');
     if (!frame) return;
-    
-    // Если есть код в редакторе
-    if (B.type === 'editor' && (B.html || B.css || B.js)) {
+    if (AppBuilder.type === 'editor' && (AppBuilder.html || AppBuilder.css || AppBuilder.js)) {
         const full = `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>${B.css}</style></head>
-<body>${B.html}<script>${B.js}<\/script></body>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>${AppBuilder.css}</style></head>
+<body>${AppBuilder.html}<script>${AppBuilder.js}<\/script></body>
 </html>`;
         frame.srcdoc = full;
         return;
     }
-    
-    // Если есть URL
-    if (B.url) {
-        frame.src = B.url;
+    if (AppBuilder.url) {
+        frame.src = AppBuilder.url;
         return;
     }
-    
     frame.srcdoc = `<h1 style="color:#1a1a2e;text-align:center;padding:40px;">Нет контента для предпросмотра</h1>`;
 }
 
-function openBFullscreen() {
+function openBuilderFullscreen() {
     const frame = document.getElementById('builder-preview-frame');
     if (frame && frame.requestFullscreen) frame.requestFullscreen();
 }
 
 // ================================================================
-// ===== ОСНОВНЫЕ ФУНКЦИИ =====
+// ===== ОСНОВНЫЕ ФУНКЦИИ КОНСТРУКТОРА =====
 // ================================================================
 
-// СОХРАНИТЬ .Wrk
 function saveWrk() {
-    saveBCode();
+    saveBuilderCode();
     const data = {
         version: '3.0',
-        name: B.name,
-        type: B.type,
-        url: B.url,
-        html: B.html,
-        css: B.css,
-        js: B.js,
-        icon: B.icon,
-        allowFiles: B.allowFiles,
+        name: AppBuilder.name,
+        type: AppBuilder.type,
+        url: AppBuilder.url,
+        html: AppBuilder.html,
+        css: AppBuilder.css,
+        js: AppBuilder.js,
+        icon: AppBuilder.icon,
+        allowFiles: AppBuilder.allowFiles,
         timestamp: Date.now()
     };
-    downloadFile(JSON.stringify(data, null, 2), `${B.name}.Wrk`, 'application/json');
-    showNotification('Экспорт', `"${B.name}.Wrk" сохранён`, '📦', 1500);
+    downloadFile(JSON.stringify(data, null, 2), `${AppBuilder.name}.Wrk`, 'application/json');
+    showNotification('Экспорт', `"${AppBuilder.name}.Wrk" сохранён`, '📦', 1500);
 }
 
-// ЭКСПОРТ .Ky
 function exportKy() {
-    saveBCode();
-    
+    saveBuilderCode();
     let html = '';
-    if (B.type === 'web' && B.url) {
+    if (AppBuilder.type === 'web' && AppBuilder.url) {
         html = `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${B.name}</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${AppBuilder.name}</title>
 <style>body{margin:0;overflow:hidden;height:100vh;}iframe{width:100%;height:100%;border:none;}</style>
 </head>
-<body><iframe src="${B.url}"></iframe></body>
+<body><iframe src="${AppBuilder.url}"></iframe></body>
 </html>`;
     } else {
         html = `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${B.name}</title>
-<style>${B.css}</style>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${AppBuilder.name}</title>
+<style>${AppBuilder.css}</style>
 </head>
-<body>${B.html}<script>${B.js}<\/script></body>
+<body>${AppBuilder.html}<script>${AppBuilder.js}<\/script></body>
 </html>`;
     }
-    
-    // Добавляем API если разрешено
-    if (B.allowFiles) {
+    if (AppBuilder.allowFiles) {
         const api = `<script>
 window.KOS = {
     saveFile: function(n,d) {
@@ -2469,54 +2446,47 @@ window.KOS = {
 <\/script>`;
         html = html.replace('</body>', api + '</body>');
     }
-    
-    downloadFile(html, `${B.name}.Ky`, 'text/html');
-    showNotification('Готово', `"${B.name}.Ky" создан`, '🚀', 1500);
+    downloadFile(html, `${AppBuilder.name}.Ky`, 'text/html');
+    showNotification('Готово', `"${AppBuilder.name}.Ky" создан`, '🚀', 1500);
 }
 
-// ТЕСТ
 function testApp() {
-    saveBCode();
-    if (B.type === 'web' && B.url) {
-        window.open(B.url, '_blank');
+    saveBuilderCode();
+    if (AppBuilder.type === 'web' && AppBuilder.url) {
+        window.open(AppBuilder.url, '_blank');
     } else {
-        renderBView('preview');
-        setTimeout(refreshBPreview, 200);
+        renderBuilderView('preview');
+        setTimeout(refreshBuilderPreview, 200);
     }
 }
 
-// УСТАНОВИТЬ В K-OS
 function installApp() {
-    saveBCode();
-    
+    saveBuilderCode();
     let content = '';
-    if (B.type === 'web' && B.url) {
-        content = B.url;
+    if (AppBuilder.type === 'web' && AppBuilder.url) {
+        content = AppBuilder.url;
     } else {
         content = `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${B.name}</title>
-<style>${B.css}</style>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${AppBuilder.name}</title>
+<style>${AppBuilder.css}</style>
 </head>
-<body>${B.html}<script>${B.js}<\/script></body>
+<body>${AppBuilder.html}<script>${AppBuilder.js}<\/script></body>
 </html>`;
     }
-    
     pinnedApps.push({
         id: 'app-' + Date.now(),
-        title: B.name,
-        icon: B.icon || 'fa-window-maximize',
+        title: AppBuilder.name,
+        icon: AppBuilder.icon || 'fa-window-maximize',
         type: 'webapp',
         content: content,
-        allowFileAccess: B.allowFiles
+        allowFileAccess: AppBuilder.allowFiles
     });
-    
     saveToFirebase();
     renderTaskbar();
-    showNotification('Установлено', `"${B.name}" в панели задач`, '📌', 1500);
+    showNotification('Установлено', `"${AppBuilder.name}" в панели задач`, '📌', 1500);
 }
 
-// ЗАГРУЗИТЬ ПРОЕКТ
 function loadProject() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -2528,36 +2498,32 @@ function loadProject() {
         reader.onload = function(ev) {
             try {
                 const text = ev.target.result;
-                // Пробуем как JSON
                 try {
                     const data = JSON.parse(text);
                     if (data.version && data.name) {
-                        B.name = data.name || 'Проект';
-                        B.type = data.type || 'editor';
-                        B.url = data.url || '';
-                        B.html = data.html || '';
-                        B.css = data.css || '';
-                        B.js = data.js || '';
-                        B.icon = data.icon || '';
-                        B.allowFiles = data.allowFiles || false;
-                        showNotification('Загружено', `"${B.name}" загружен`, '📂', 1500);
-                        renderBView('editor');
-                        fillBEditors();
+                        AppBuilder.name = data.name || 'Проект';
+                        AppBuilder.type = data.type || 'editor';
+                        AppBuilder.url = data.url || '';
+                        AppBuilder.html = data.html || '';
+                        AppBuilder.css = data.css || '';
+                        AppBuilder.js = data.js || '';
+                        AppBuilder.icon = data.icon || '';
+                        AppBuilder.allowFiles = data.allowFiles || false;
+                        showNotification('Загружено', `"${AppBuilder.name}" загружен`, '📂', 1500);
+                        renderBuilderView('editor');
+                        fillBuilderEditors();
                         return;
                     }
                 } catch(e) {}
-                
-                // Как HTML
                 if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-                    B.html = text;
-                    B.name = file.name.replace(/\.(Ky|html)$/i, '');
-                    B.type = 'editor';
-                    showNotification('Загружено', `"${B.name}" загружен`, '📂', 1500);
-                    renderBView('editor');
-                    fillBEditors();
+                    AppBuilder.html = text;
+                    AppBuilder.name = file.name.replace(/\.(Ky|html)$/i, '');
+                    AppBuilder.type = 'editor';
+                    showNotification('Загружено', `"${AppBuilder.name}" загружен`, '📂', 1500);
+                    renderBuilderView('editor');
+                    fillBuilderEditors();
                     return;
                 }
-                
                 showNotification('Ошибка', 'Неверный формат файла', '❌', 1500);
             } catch(e) {
                 showNotification('Ошибка', 'Не удалось загрузить', '❌', 1500);
@@ -2568,26 +2534,25 @@ function loadProject() {
     input.click();
 }
 
-function fillBEditors() {
+function fillBuilderEditors() {
     setTimeout(() => {
         const html = document.getElementById('b-html');
         const css = document.getElementById('b-css');
         const js = document.getElementById('b-js');
         const name = document.getElementById('b-editor-name');
         const icon = document.getElementById('b-editor-icon');
-        if (html) html.value = B.html;
-        if (css) css.value = B.css;
-        if (js) js.value = B.js;
-        if (name) name.value = B.name;
-        if (icon) icon.value = B.icon;
+        if (html) html.value = AppBuilder.html;
+        if (css) css.value = AppBuilder.css;
+        if (js) js.value = AppBuilder.js;
+        if (name) name.value = AppBuilder.name;
+        if (icon) icon.value = AppBuilder.icon;
     }, 50);
 }
 
-// ПРИМЕР ПРОЕКТА
 function loadExample() {
-    B.name = 'Todo-приложение';
-    B.type = 'editor';
-    B.html = `<div class="app">
+    AppBuilder.name = 'Todo-приложение';
+    AppBuilder.type = 'editor';
+    AppBuilder.html = `<div class="app">
     <h1>📝 Мои задачи</h1>
     <div class="input-row">
         <input id="todo-input" placeholder="Добавить задачу..." onkeypress="if(event.key==='Enter') addTodo()">
@@ -2595,7 +2560,7 @@ function loadExample() {
     </div>
     <ul id="todo-list"></ul>
 </div>`;
-    B.css = `.app{max-width:500px;margin:0 auto;padding:20px;font-family:Arial}
+    AppBuilder.css = `.app{max-width:500px;margin:0 auto;padding:20px;font-family:Arial}
 h1{text-align:center;color:#667eea}
 .input-row{display:flex;gap:8px;margin-bottom:16px}
 .input-row input{flex:1;padding:10px;border:2px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(255,255,255,0.06);color:white;font-size:14px;outline:none}
@@ -2606,26 +2571,24 @@ h1{text-align:center;color:#667eea}
 #todo-list li:hover{background:rgba(255,255,255,0.08)}
 #todo-list li.done{text-decoration:line-through;opacity:0.4}
 #todo-list li .del{background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:16px}`;
-    B.js = `let todos = [];
+    AppBuilder.js = `let todos = [];
 function addTodo(){var i=document.getElementById('todo-input'),t=i.value.trim();if(!t)return;todos.push({text:t,done:false});i.value='';renderTodos()}
 function toggleTodo(i){todos[i].done=!todos[i].done;renderTodos()}
 function deleteTodo(i){todos.splice(i,1);renderTodos()}
 function renderTodos(){var list=document.getElementById('todo-list');list.innerHTML=todos.map(function(t,i){return '<li class="'+(t.done?'done':'')+'" onclick="toggleTodo('+i+')">'+t.text+'<button class="del" onclick="event.stopPropagation();deleteTodo('+i+')">✕</button></li>'}).join('')}`;
-    B.icon = '';
-    B.allowFiles = false;
-    
-    addBRecent(B.name, 'editor');
-    saveBData();
-    renderBView('editor');
-    fillBEditors();
+    AppBuilder.icon = '';
+    AppBuilder.allowFiles = false;
+    addBuilderRecent(AppBuilder.name, 'editor');
+    saveBuilderData();
+    renderBuilderView('editor');
+    fillBuilderEditors();
     showNotification('Загружено', 'Пример Todo-приложения готов', '📖', 1500);
 }
 
 // ================================================================
-// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ КОНСТРУКТОРА =====
 // ================================================================
 
-// Скачать файл
 function downloadFile(content, filename, type) {
     const blob = new Blob([content], { type: type });
     const url = URL.createObjectURL(blob);
@@ -2638,66 +2601,61 @@ function downloadFile(content, filename, type) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// Добавить в недавние
-function addBRecent(name, type) {
-    B.recent = B.recent.filter(p => p.name !== name);
-    B.recent.unshift({ name, type, timestamp: Date.now() });
-    if (B.recent.length > 20) B.recent = B.recent.slice(0, 20);
-    updateBRecent();
-    saveBData();
+function addBuilderRecent(name, type) {
+    AppBuilder.recent = AppBuilder.recent.filter(p => p.name !== name);
+    AppBuilder.recent.unshift({ name, type, timestamp: Date.now() });
+    if (AppBuilder.recent.length > 20) AppBuilder.recent = AppBuilder.recent.slice(0, 20);
+    updateBuilderRecent();
+    saveBuilderData();
 }
 
-// Обновить список недавних
-function updateBRecent() {
+function updateBuilderRecent() {
     const list = document.getElementById('builder-recent-list');
     if (!list) return;
-    if (B.recent.length === 0) {
+    if (AppBuilder.recent.length === 0) {
         list.innerHTML = '<div style="font-size:11px;opacity:0.2;padding:6px;">Нет проектов</div>';
         return;
     }
-    list.innerHTML = B.recent.slice(0, 5).map(p => `
+    list.innerHTML = AppBuilder.recent.slice(0, 5).map(p => `
         <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;transition:all 0.2s;" 
              onmouseover="this.style.background='rgba(255,255,255,0.05)'" 
              onmouseout="this.style.background='none'"
-             onclick="loadBRecent('${p.name}')">
+             onclick="loadBuilderRecent('${p.name}')">
             <i class="fas ${p.type === 'web' ? 'fa-globe' : 'fa-code'}" style="font-size:10px;opacity:0.4;"></i>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
         </div>
     `).join('');
 }
 
-// Загрузить недавний
-function loadBRecent(name) {
-    const p = B.recent.find(r => r.name === name);
+function loadBuilderRecent(name) {
+    const p = AppBuilder.recent.find(r => r.name === name);
     if (!p) return;
-    B.name = p.name;
-    B.type = p.type;
-    // Пытаемся загрузить полные данные из localStorage
+    AppBuilder.name = p.name;
+    AppBuilder.type = p.type;
     try {
-        const saved = localStorage.getItem('builder_data');
+        const saved = localStorage.getItem('builder_data_v3');
         if (saved) {
             const data = JSON.parse(saved);
             if (data.current && data.current.name === name) {
-                B.url = data.current.url || '';
-                B.html = data.current.html || '';
-                B.css = data.current.css || '';
-                B.js = data.current.js || '';
-                B.icon = data.current.icon || '';
-                B.allowFiles = data.current.allowFiles || false;
+                AppBuilder.url = data.current.url || '';
+                AppBuilder.html = data.current.html || '';
+                AppBuilder.css = data.current.css || '';
+                AppBuilder.js = data.current.js || '';
+                AppBuilder.icon = data.current.icon || '';
+                AppBuilder.allowFiles = data.current.allowFiles || false;
             }
         }
     } catch(e) {}
-    
-    if (B.type === 'web') {
-        renderBView('web');
-        document.getElementById('b-web-url').value = B.url;
-        document.getElementById('b-web-name').value = B.name;
-        document.getElementById('b-web-icon').value = B.icon;
+    if (AppBuilder.type === 'web') {
+        renderBuilderView('web');
+        document.getElementById('b-web-url').value = AppBuilder.url;
+        document.getElementById('b-web-name').value = AppBuilder.name;
+        document.getElementById('b-web-icon').value = AppBuilder.icon;
     } else {
-        renderBView('editor');
-        fillBEditors();
+        renderBuilderView('editor');
+        fillBuilderEditors();
     }
-    showNotification('Загружено', `"${B.name}" загружен`, '📂', 1000);
+    showNotification('Загружено', `"${AppBuilder.name}" загружен`, '📂', 1000);
 }
 
 // ================================================================
@@ -2728,15 +2686,9 @@ window.addEventListener('message', (e) => {
 });
 
 // ================================================================
-// ===== ИНИЦИАЛИЗАЦИЯ =====
+// ===== ЗАПУСК ПРИЛОЖЕНИЙ =====
 // ================================================================
 
-loadBData();
-updateBRecent();
-console.log('✅ Конструктор приложений v3.0 готов!');
-console.log('📦 Форматы: .Wrk (проект), .Ky (приложение)');
-// ===== ЗАПУСК ПРИЛОЖЕНИЙ (ПЕРЕОПРЕДЕЛЕНИЕ) =====
-// Проверяем, существует ли launchApp, если нет — создаём заглушку
 if (typeof launchApp !== 'undefined') {
     const origLaunchApp = launchApp;
     launchApp = function(appData) {
@@ -2747,13 +2699,11 @@ if (typeof launchApp !== 'undefined') {
         origLaunchApp(appData);
     };
 } else {
-    // Если launchApp ещё не определена, определяем её здесь
     window.launchApp = function(appData) {
         if (appData.type === 'webapp' && appData.content) {
             openAppWindow({ name: appData.title + '.exe', content: appData.content, id: appData.id });
             return;
         }
-        // Ищем файл/папку на рабочем столе
         const item = currentDesktopItems.find(i => 
             i.name === appData.title || 
             i.id == appData.id || 
@@ -2766,6 +2716,7 @@ if (typeof launchApp !== 'undefined') {
         }
     };
 }
+
 // ================================================================
 // ===== НАСТРОЙКИ (ПОЛНОСТЬЮ РАБОЧИЕ) =====
 // ================================================================
@@ -3241,7 +3192,7 @@ function changeAvatarKs(win) {
     input.click();
 }
 
-// ===== СИСТЕМА СОХРАНЕНИЯ (LocalStorage + Firebase + ImgBB) =====
+// ===== СИСТЕМА СОХРАНЕНИЯ =====
 
 function loadAllFromLocalStorage() {
     if (!currentUser) return;
@@ -3445,698 +3396,10 @@ function setAvatar(dataUrl) {
     saveToFirebase();
     if (dataUrl.startsWith('data:image')) syncImageToCloud(dataUrl, 'avatar');
 }
-// ================================================================
-// ===== КОНСТРУКТОР ПРИЛОЖЕНИЙ - ПОЛНОСТЬЮ РАБОЧИЙ =====
-// ================================================================
 
-// СОСТОЯНИЕ
-const B = {
-    view: 'welcome',
-    name: 'Моё приложение',
-    type: 'editor',
-    url: '',
-    html: '',
-    css: '',
-    js: '',
-    icon: '',
-    allowFiles: false,
-    recent: []
-};
-
-// ЗАГРУЗКА ДАННЫХ
-function loadB() {
-    try {
-        const saved = localStorage.getItem('builder_data_v3');
-        if (saved) {
-            const data = JSON.parse(saved);
-            B.recent = data.recent || [];
-            if (data.current) {
-                B.name = data.current.name || B.name;
-                B.type = data.current.type || B.type;
-                B.url = data.current.url || '';
-                B.html = data.current.html || '';
-                B.css = data.current.css || '';
-                B.js = data.current.js || '';
-                B.icon = data.current.icon || '';
-                B.allowFiles = data.current.allowFiles || false;
-            }
-        }
-    } catch(e) { console.log('Load error:', e); }
-}
-
-// СОХРАНЕНИЕ ДАННЫХ
-function saveB() {
-    try {
-        localStorage.setItem('builder_data_v3', JSON.stringify({
-            recent: B.recent,
-            current: {
-                name: B.name,
-                type: B.type,
-                url: B.url,
-                html: B.html,
-                css: B.css,
-                js: B.js,
-                icon: B.icon,
-                allowFiles: B.allowFiles
-            }
-        }));
-    } catch(e) { console.log('Save error:', e); }
-}
-
-// ОТКРЫТИЕ КОНСТРУКТОРА
-window.openAppBuilder2 = function() {
-    console.log('🔧 Открываем конструктор...');
-    const win = document.getElementById('app-builder-window');
-    if (!win) {
-        console.error('❌ Окно конструктора не найдено!');
-        return;
-    }
-    win.style.display = 'flex';
-    loadB();
-    renderB('welcome');
-    updateBRecent();
-    console.log('✅ Конструктор открыт');
-};
-
-// НАВИГАЦИЯ
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.builder-nav').forEach(el => {
-        el.addEventListener('click', function() {
-            renderB(this.dataset.view);
-        });
-    });
-});
-
-// РЕНДЕР
-function renderB(view) {
-    B.view = view;
-    const content = document.getElementById('builder-content');
-    if (!content) return;
-
-    // Обновляем навигацию
-    document.querySelectorAll('.builder-nav').forEach(el => {
-        el.style.background = 'transparent';
-        el.style.color = 'rgba(255,255,255,0.6)';
-        el.style.border = 'none';
-        if (el.dataset.view === view) {
-            el.style.background = 'rgba(102,126,234,0.2)';
-            el.style.color = 'white';
-            el.style.border = '1px solid rgba(102,126,234,0.3)';
-        }
-    });
-
-    switch(view) {
-        case 'welcome': renderBWelcome(content); break;
-        case 'web': renderBWeb(content); break;
-        case 'editor': renderBEditor(content); break;
-        case 'preview': renderBPreview(content); break;
-        default: content.innerHTML = '<p style="opacity:0.4;">Выберите раздел</p>';
-    }
-}
-
-// ===== ГЛАВНАЯ =====
-function renderBWelcome(content) {
-    content.innerHTML = `
-        <div style="max-width:900px;margin:0 auto;padding:10px 0;">
-            <div style="text-align:center;padding:10px 0 20px;">
-                <div style="font-size:44px;margin-bottom:12px;">🚀</div>
-                <h1 style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Создай своё приложение</h1>
-                <p style="opacity:0.5;font-size:14px;margin-top:6px;">Выберите способ создания или откройте проект</p>
-            </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-                <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;cursor:pointer;transition:all 0.3s;" onclick="renderB('web')" onmouseover="this.style.borderColor='#667eea';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
-                    <div style="font-size:28px;margin-bottom:8px;">🌐</div>
-                    <h3 style="margin-bottom:6px;font-size:16px;">Веб-сайт</h3>
-                    <p style="opacity:0.4;font-size:12px;">Создайте обёртку для любого сайта</p>
-                </div>
-
-                <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;cursor:pointer;transition:all 0.3s;" onclick="renderB('editor')" onmouseover="this.style.borderColor='#667eea';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
-                    <div style="font-size:28px;margin-bottom:8px;">💻</div>
-                    <h3 style="margin-bottom:6px;font-size:16px;">Редактор кода</h3>
-                    <p style="opacity:0.4;font-size:12px;">Напишите HTML/CSS/JS с нуля</p>
-                </div>
-
-                <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;cursor:pointer;transition:all 0.3s;" onclick="loadProject()" onmouseover="this.style.borderColor='#4ecdc4';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
-                    <div style="font-size:28px;margin-bottom:8px;">📂</div>
-                    <h3 style="margin-bottom:6px;font-size:16px;">Открыть проект</h3>
-                    <p style="opacity:0.4;font-size:12px;">Загрузите .Wrk или .Ky файл</p>
-                </div>
-
-                <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;cursor:pointer;transition:all 0.3s;" onclick="loadExample()" onmouseover="this.style.borderColor='#ffaa44';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.06)';this.style.transform='none'">
-                    <div style="font-size:28px;margin-bottom:8px;">📖</div>
-                    <h3 style="margin-bottom:6px;font-size:16px;">Пример проекта</h3>
-                    <p style="opacity:0.4;font-size:12px;">Todo-приложение для старта</p>
-                </div>
-            </div>
-
-            <div style="margin-top:20px;padding:14px;background:rgba(255,255,255,0.03);border-radius:12px;border:1px dashed rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                <span style="font-size:12px;opacity:0.5;"><i class="fas fa-info-circle" style="color:#667eea;"></i> Проекты сохраняются автоматически</span>
-                <span style="font-size:11px;opacity:0.3;">${B.recent.length} проектов</span>
-            </div>
-        </div>
-    `;
-}
-
-// ===== ВЕБ-САЙТ =====
-function renderBWeb(content) {
-    content.innerHTML = `
-        <div style="max-width:700px;margin:0 auto;">
-            <h2 style="margin-bottom:16px;font-size:22px;">🌐 Веб-приложение</h2>
-            
-            <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;margin-bottom:14px;">
-                <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><i class="fas fa-link" style="color:#667eea;"></i> URL</div>
-                <input class="b-input" id="b-web-url" placeholder="https://example.com" value="${B.url}" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:white;font-size:14px;outline:none;">
-            </div>
-
-            <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;margin-bottom:14px;">
-                <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><i class="fas fa-tag" style="color:#4ecdc4;"></i> Название</div>
-                <input class="b-input" id="b-web-name" placeholder="Название приложения" value="${B.name}" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:white;font-size:14px;outline:none;">
-            </div>
-
-            <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;margin-bottom:14px;">
-                <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><i class="fas fa-image" style="color:#ffaa44;"></i> Иконка (URL)</div>
-                <input class="b-input" id="b-web-icon" placeholder="https://example.com/icon.png" value="${B.icon}" style="width:100%;padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:white;font-size:14px;outline:none;">
-            </div>
-
-            <div class="b-card" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px;margin-bottom:14px;">
-                <div style="font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><i class="fas fa-shield-alt" style="color:#4ecdc4;"></i> Доступ к файлам</div>
-                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-                    <input type="checkbox" id="b-web-files" ${B.allowFiles ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
-                    <span style="font-size:13px;">Разрешить отправку файлов в K-OS</span>
-                </label>
-                <div style="margin-top:6px;font-size:11px;opacity:0.3;padding:6px 10px;background:rgba(255,255,255,0.03);border-radius:6px;">
-                    <i class="fas fa-info-circle"></i> Приложение сможет использовать window.KOS.saveFile()
-                </div>
-            </div>
-
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
-                <button class="builder-btn" style="padding:8px 20px;border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;" onclick="saveBWeb()"><i class="fas fa-check"></i> Применить</button>
-                <button class="builder-btn" style="padding:8px 20px;border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.08);" onclick="previewBWeb()"><i class="fas fa-eye"></i> Предпросмотр</button>
-            </div>
-        </div>
-    `;
-}
-
-function saveBWeb() {
-    B.url = document.getElementById('b-web-url').value.trim();
-    B.name = document.getElementById('b-web-name').value.trim() || 'Веб-приложение';
-    B.icon = document.getElementById('b-web-icon').value.trim();
-    B.allowFiles = document.getElementById('b-web-files').checked;
-    B.type = 'web';
-    addBRecent(B.name, 'web');
-    saveB();
-    showNotification('Сохранено', `"${B.name}" готов`, '✅', 1500);
-}
-
-function previewBWeb() {
-    const url = document.getElementById('b-web-url').value.trim();
-    if (!url) { showNotification('Ошибка', 'Введите URL', '❌', 1500); return; }
-    renderB('preview');
-    setTimeout(() => {
-        const frame = document.getElementById('builder-preview-frame');
-        if (frame) frame.src = url;
-    }, 200);
-}
-
-// ===== РЕДАКТОР =====
-function renderBEditor(content) {
-    content.innerHTML = `
-        <div style="max-width:100%;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-                <h2 style="font-size:20px;margin:0;">💻 Редактор кода</h2>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                    <input class="b-input" id="b-editor-name" placeholder="Название" value="${B.name}" style="width:180px;padding:6px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:white;font-size:13px;outline:none;">
-                    <input class="b-input" id="b-editor-icon" placeholder="Иконка URL" value="${B.icon}" style="width:160px;padding:6px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:white;font-size:13px;outline:none;">
-                </div>
-            </div>
-
-            <div style="display:flex;gap:2px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:0;">
-                <button class="b-tab active" data-tab="html" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid #667eea;transition:all 0.2s;">HTML</button>
-                <button class="b-tab" data-tab="css" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;transition:all 0.2s;">CSS</button>
-                <button class="b-tab" data-tab="js" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;transition:all 0.2s;">JS</button>
-                <button class="b-tab" data-tab="preview" style="padding:8px 16px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:13px;border-bottom:2px solid transparent;transition:all 0.2s;margin-left:auto;">👁 Предпросмотр</button>
-            </div>
-
-            <div id="b-editors" style="position:relative;">
-                <textarea class="b-textarea b-code-editor active" id="b-html" style="width:100%;padding:14px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:10px;color:#e0e0e0;font-family:'Courier New',monospace;font-size:13px;line-height:1.6;resize:vertical;outline:none;min-height:300px;display:block;">${B.html || `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${B.name}</title>
-    <style>
-        /* Твой CSS здесь */
-    </style>
-</head>
-<body>
-    <h1>Привет, K-OS!</h1>
-    <p>Начни создавать своё приложение</p>
-    <script>
-        console.log("Приложение запущено!");
-    <\/script>
-</body>
-</html>`}</textarea>
-                <textarea class="b-textarea b-code-editor" id="b-css" style="width:100%;padding:14px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:10px;color:#e0e0e0;font-family:'Courier New',monospace;font-size:13px;line-height:1.6;resize:vertical;outline:none;min-height:300px;display:none;">${B.css || `body {
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-    color: white;
-    font-family: Arial, sans-serif;
-    padding: 20px;
-    min-height: 100vh;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-}
-h1 {
-    font-size: 42px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-p { opacity: 0.6; }`}</textarea>
-                <textarea class="b-textarea b-code-editor" id="b-js" style="width:100%;padding:14px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:10px;color:#e0e0e0;font-family:'Courier New',monospace;font-size:13px;line-height:1.6;resize:vertical;outline:none;min-height:300px;display:none;">${B.js || `// Твой JavaScript здесь
-console.log("Приложение запущено!");
-
-// Функция для сохранения файлов в K-OS
-function saveFile() {
-    if (window.KOS && window.KOS.saveFile) {
-        window.KOS.saveFile("example.txt", "Hello from K-OS!");
-        alert("Файл сохранён!");
-    }
-}`}</textarea>
-                <div id="b-preview-area" style="min-height:300px;display:none;background:white;border-radius:10px;overflow:hidden;">
-                    <iframe id="b-preview-frame" style="width:100%;height:100%;min-height:300px;border:none;"></iframe>
-                </div>
-            </div>
-
-            <div style="margin-top:8px;padding:6px 12px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:11px;opacity:0.3;display:flex;gap:16px;flex-wrap:wrap;">
-                <span><kbd style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px;">Ctrl+S</kbd> Сохранить</span>
-                <span><kbd style="background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px;">Ctrl+Shift+P</kbd> Предпросмотр</span>
-            </div>
-        </div>
-    `;
-
-    // Переключение вкладок
-    document.querySelectorAll('.b-tab').forEach(tab => {
-        tab.onclick = function() {
-            document.querySelectorAll('.b-tab').forEach(t => t.style.borderBottom = '2px solid transparent');
-            this.style.borderBottom = '2px solid #667eea';
-            
-            const target = this.dataset.tab;
-            document.querySelectorAll('.b-code-editor').forEach(el => el.style.display = 'none');
-            document.getElementById('b-preview-area').style.display = 'none';
-            
-            if (target === 'preview') {
-                document.getElementById('b-preview-area').style.display = 'block';
-                previewBCode();
-            } else {
-                const el = document.getElementById('b-' + target);
-                if (el) el.style.display = 'block';
-            }
-        };
-    });
-
-    // Горячие клавиши
-    document.querySelectorAll('.b-code-editor').forEach(el => {
-        el.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                saveBCode();
-                showNotification('Сохранено', 'Код сохранён', '💾', 1000);
-            }
-            if (e.ctrlKey && e.shiftKey && e.key === 'P') {
-                e.preventDefault();
-                previewBCode();
-            }
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                const start = this.selectionStart;
-                this.value = this.value.substring(0, start) + '    ' + this.value.substring(this.selectionEnd);
-                this.selectionStart = this.selectionEnd = start + 4;
-            }
-        });
-    });
-}
-
-function saveBCode() {
-    B.html = document.getElementById('b-html').value;
-    B.css = document.getElementById('b-css').value;
-    B.js = document.getElementById('b-js').value;
-    B.name = document.getElementById('b-editor-name').value.trim() || B.name;
-    B.icon = document.getElementById('b-editor-icon').value.trim();
-    B.type = 'editor';
-    addBRecent(B.name, 'editor');
-    saveB();
-}
-
-function previewBCode() {
-    const html = document.getElementById('b-html').value || '';
-    const css = document.getElementById('b-css').value || '';
-    const js = document.getElementById('b-js').value || '';
-    
-    const full = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>${css}</style></head>
-<body>${html}<script>${js}<\/script></body>
-</html>`;
-    
-    const frame = document.getElementById('b-preview-frame');
-    if (frame) frame.srcdoc = full;
-    
-    document.querySelectorAll('.b-tab').forEach(t => t.style.borderBottom = '2px solid transparent');
-    const previewTab = document.querySelector('.b-tab[data-tab="preview"]');
-    if (previewTab) previewTab.style.borderBottom = '2px solid #667eea';
-    document.querySelectorAll('.b-code-editor').forEach(el => el.style.display = 'none');
-    document.getElementById('b-preview-area').style.display = 'block';
-}
-
-// ===== ПРЕДПРОСМОТР =====
-function renderBPreview(content) {
-    content.innerHTML = `
-        <div style="max-width:100%;height:100%;display:flex;flex-direction:column;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-                <h2 style="font-size:20px;margin:0;">👁 Предпросмотр</h2>
-                <div style="display:flex;gap:6px;">
-                    <button class="builder-btn" style="padding:6px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.08);" onclick="refreshBPreview()"><i class="fas fa-sync-alt"></i> Обновить</button>
-                </div>
-            </div>
-            <div style="flex:1;background:white;border-radius:14px;overflow:hidden;min-height:400px;">
-                <iframe id="builder-preview-frame" style="width:100%;height:100%;border:none;background:white;"></iframe>
-            </div>
-        </div>
-    `;
-    refreshBPreview();
-}
-
-function refreshBPreview() {
-    const frame = document.getElementById('builder-preview-frame');
-    if (!frame) return;
-    if (B.type === 'editor' && (B.html || B.css || B.js)) {
-        const full = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>${B.css}</style></head>
-<body>${B.html}<script>${B.js}<\/script></body>
-</html>`;
-        frame.srcdoc = full;
-        return;
-    }
-    if (B.url) {
-        frame.src = B.url;
-        return;
-    }
-    frame.srcdoc = `<h1 style="color:#1a1a2e;text-align:center;padding:40px;">Нет контента для предпросмотра</h1>`;
-}
-
-// ================================================================
-// ===== ОСНОВНЫЕ ФУНКЦИИ =====
-// ================================================================
-
-function saveWrk() {
-    saveBCode();
-    const data = {
-        version: '3.0',
-        name: B.name,
-        type: B.type,
-        url: B.url,
-        html: B.html,
-        css: B.css,
-        js: B.js,
-        icon: B.icon,
-        allowFiles: B.allowFiles,
-        timestamp: Date.now()
-    };
-    downloadFile(JSON.stringify(data, null, 2), `${B.name}.Wrk`, 'application/json');
-    showNotification('Экспорт', `"${B.name}.Wrk" сохранён`, '📦', 1500);
-}
-
-function exportKy() {
-    saveBCode();
-    let html = '';
-    if (B.type === 'web' && B.url) {
-        html = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${B.name}</title>
-<style>body{margin:0;overflow:hidden;height:100vh;}iframe{width:100%;height:100%;border:none;}</style>
-</head>
-<body><iframe src="${B.url}"></iframe></body>
-</html>`;
-    } else {
-        html = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${B.name}</title>
-<style>${B.css}</style>
-</head>
-<body>${B.html}<script>${B.js}<\/script></body>
-</html>`;
-    }
-    if (B.allowFiles) {
-        const api = `<script>
-window.KOS = {
-    saveFile: function(n,d) {
-        try { window.parent.postMessage({action:'saveFile',name:n,dataUrl:d},'*'); return true; }
-        catch(e){ return false; }
-    },
-    saveToDesktop: function(n,d) {
-        try { window.parent.postMessage({action:'saveToDesktop',name:n,dataUrl:d},'*'); return true; }
-        catch(e){ return false; }
-    },
-    getFiles: function() {
-        return new Promise(function(resolve) {
-            var h = function(e) {
-                if(e.data.action==='filesList') {
-                    window.removeEventListener('message',h);
-                    resolve(e.data.files);
-                }
-            };
-            window.addEventListener('message',h);
-            window.parent.postMessage({action:'getFiles'},'*');
-            setTimeout(function(){ window.removeEventListener('message',h); resolve([]); },3000);
-        });
-    }
-};
-<\/script>`;
-        html = html.replace('</body>', api + '</body>');
-    }
-    downloadFile(html, `${B.name}.Ky`, 'text/html');
-    showNotification('Готово', `"${B.name}.Ky" создан`, '🚀', 1500);
-}
-
-function testApp() {
-    saveBCode();
-    if (B.type === 'web' && B.url) {
-        window.open(B.url, '_blank');
-    } else {
-        renderB('preview');
-        setTimeout(refreshBPreview, 200);
-    }
-}
-
-function installApp() {
-    saveBCode();
-    let content = '';
-    if (B.type === 'web' && B.url) {
-        content = B.url;
-    } else {
-        content = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${B.name}</title>
-<style>${B.css}</style>
-</head>
-<body>${B.html}<script>${B.js}<\/script></body>
-</html>`;
-    }
-    pinnedApps.push({
-        id: 'app-' + Date.now(),
-        title: B.name,
-        icon: B.icon || 'fa-window-maximize',
-        type: 'webapp',
-        content: content,
-        allowFileAccess: B.allowFiles
-    });
-    saveToFirebase();
-    renderTaskbar();
-    showNotification('Установлено', `"${B.name}" в панели задач`, '📌', 1500);
-}
-
-function loadProject() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.Wrk,.Ky,.html';
-    input.onchange = function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(ev) {
-            try {
-                const text = ev.target.result;
-                try {
-                    const data = JSON.parse(text);
-                    if (data.version && data.name) {
-                        B.name = data.name || 'Проект';
-                        B.type = data.type || 'editor';
-                        B.url = data.url || '';
-                        B.html = data.html || '';
-                        B.css = data.css || '';
-                        B.js = data.js || '';
-                        B.icon = data.icon || '';
-                        B.allowFiles = data.allowFiles || false;
-                        showNotification('Загружено', `"${B.name}" загружен`, '📂', 1500);
-                        renderB('editor');
-                        fillBEditors();
-                        return;
-                    }
-                } catch(e) {}
-                if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-                    B.html = text;
-                    B.name = file.name.replace(/\.(Ky|html)$/i, '');
-                    B.type = 'editor';
-                    showNotification('Загружено', `"${B.name}" загружен`, '📂', 1500);
-                    renderB('editor');
-                    fillBEditors();
-                    return;
-                }
-                showNotification('Ошибка', 'Неверный формат файла', '❌', 1500);
-            } catch(e) {
-                showNotification('Ошибка', 'Не удалось загрузить', '❌', 1500);
-            }
-        };
-        reader.readAsText(file);
-    };
-    input.click();
-}
-
-function fillBEditors() {
-    setTimeout(() => {
-        const html = document.getElementById('b-html');
-        const css = document.getElementById('b-css');
-        const js = document.getElementById('b-js');
-        const name = document.getElementById('b-editor-name');
-        const icon = document.getElementById('b-editor-icon');
-        if (html) html.value = B.html;
-        if (css) css.value = B.css;
-        if (js) js.value = B.js;
-        if (name) name.value = B.name;
-        if (icon) icon.value = B.icon;
-    }, 50);
-}
-
-function loadExample() {
-    B.name = 'Todo-приложение';
-    B.type = 'editor';
-    B.html = `<div class="app">
-    <h1>📝 Мои задачи</h1>
-    <div class="input-row">
-        <input id="todo-input" placeholder="Добавить задачу..." onkeypress="if(event.key==='Enter') addTodo()">
-        <button onclick="addTodo()">➕</button>
-    </div>
-    <ul id="todo-list"></ul>
-</div>`;
-    B.css = `.app{max-width:500px;margin:0 auto;padding:20px;font-family:Arial}
-h1{text-align:center;color:#667eea}
-.input-row{display:flex;gap:8px;margin-bottom:16px}
-.input-row input{flex:1;padding:10px;border:2px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(255,255,255,0.06);color:white;font-size:14px;outline:none}
-.input-row input:focus{border-color:#667eea}
-.input-row button{padding:10px 20px;background:linear-gradient(135deg,#667eea,#764ba2);border:none;border-radius:8px;color:white;cursor:pointer;font-size:18px}
-#todo-list{list-style:none;padding:0}
-#todo-list li{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(255,255,255,0.04);border-radius:8px;margin-bottom:6px;cursor:pointer}
-#todo-list li:hover{background:rgba(255,255,255,0.08)}
-#todo-list li.done{text-decoration:line-through;opacity:0.4}
-#todo-list li .del{background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:16px}`;
-    B.js = `let todos = [];
-function addTodo(){var i=document.getElementById('todo-input'),t=i.value.trim();if(!t)return;todos.push({text:t,done:false});i.value='';renderTodos()}
-function toggleTodo(i){todos[i].done=!todos[i].done;renderTodos()}
-function deleteTodo(i){todos.splice(i,1);renderTodos()}
-function renderTodos(){var list=document.getElementById('todo-list');list.innerHTML=todos.map(function(t,i){return '<li class="'+(t.done?'done':'')+'" onclick="toggleTodo('+i+')">'+t.text+'<button class="del" onclick="event.stopPropagation();deleteTodo('+i+')">✕</button></li>'}).join('')}`;
-    B.icon = '';
-    B.allowFiles = false;
-    addBRecent(B.name, 'editor');
-    saveB();
-    renderB('editor');
-    fillBEditors();
-    showNotification('Загружено', 'Пример Todo-приложения готов', '📖', 1500);
-}
-
-// ================================================================
-// ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
-// ================================================================
-
-function downloadFile(content, filename, type) {
-    const blob = new Blob([content], { type: type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function addBRecent(name, type) {
-    B.recent = B.recent.filter(p => p.name !== name);
-    B.recent.unshift({ name, type, timestamp: Date.now() });
-    if (B.recent.length > 20) B.recent = B.recent.slice(0, 20);
-    updateBRecent();
-    saveB();
-}
-
-function updateBRecent() {
-    const list = document.getElementById('builder-recent-list');
-    if (!list) return;
-    if (B.recent.length === 0) {
-        list.innerHTML = '<div style="font-size:11px;opacity:0.2;padding:6px;">Нет проектов</div>';
-        return;
-    }
-    list.innerHTML = B.recent.slice(0, 5).map(p => `
-        <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;transition:all 0.2s;" 
-             onmouseover="this.style.background='rgba(255,255,255,0.05)'" 
-             onmouseout="this.style.background='none'"
-             onclick="loadBRecent('${p.name}')">
-            <i class="fas ${p.type === 'web' ? 'fa-globe' : 'fa-code'}" style="font-size:10px;opacity:0.4;"></i>
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
-        </div>
-    `).join('');
-}
-
-function loadBRecent(name) {
-    const p = B.recent.find(r => r.name === name);
-    if (!p) return;
-    B.name = p.name;
-    B.type = p.type;
-    try {
-        const saved = localStorage.getItem('builder_data_v3');
-        if (saved) {
-            const data = JSON.parse(saved);
-            if (data.current && data.current.name === name) {
-                B.url = data.current.url || '';
-                B.html = data.current.html || '';
-                B.css = data.current.css || '';
-                B.js = data.current.js || '';
-                B.icon = data.current.icon || '';
-                B.allowFiles = data.current.allowFiles || false;
-            }
-        }
-    } catch(e) {}
-    if (B.type === 'web') {
-        renderB('web');
-        document.getElementById('b-web-url').value = B.url;
-        document.getElementById('b-web-name').value = B.name;
-        document.getElementById('b-web-icon').value = B.icon;
-    } else {
-        renderB('editor');
-        fillBEditors();
-    }
-    showNotification('Загружено', `"${B.name}" загружен`, '📂', 1000);
-}
-
-// ================================================================
-// ===== ИНИЦИАЛИЗАЦИЯ =====
-// ================================================================
-
-loadB();
-updateBRecent();
+// Инициализация конструктора
+loadBuilderData();
+updateBuilderRecent();
 console.log('✅ Конструктор приложений v3.0 готов!');
 console.log('📦 Форматы: .Wrk (проект), .Ky (приложение)');
 console.log('✅ K-OS полностью обновлён!');
