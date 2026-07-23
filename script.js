@@ -367,6 +367,15 @@ function renderDesktop() {
         const icon = createDesktopIcon(item);
         container.appendChild(icon);
     });
+    const explorerIcon = document.createElement('div');
+    explorerIcon.className = 'desktop-icon explorer-icon';
+    explorerIcon.setAttribute('data-id', 'explorer');
+    explorerIcon.innerHTML = `
+        <div class="icon-img"><i class="fas fa-folder-open"></i></div>
+        <div class="icon-label">Проводник</div>
+    `;
+    explorerIcon.onclick = () => openExplorer();
+    container.appendChild(explorerIcon);
     const trashIcon = document.createElement('div');
     trashIcon.className = 'desktop-icon trash-icon';
     trashIcon.setAttribute('data-id', 'trash');
@@ -1161,8 +1170,9 @@ function showFileContextMenu(x, y, item) {
     if (desktopMenu) desktopMenu.style.display = 'none';
     const menu = document.getElementById('file-context-menu');
     if (!menu) return;
-    menu.innerHTML = `
+menu.innerHTML = `
         <div class="context-item" data-action="open"><i class="fas fa-folder-open"></i> Открыть</div>
+        <div class="context-item" data-action="location"><i class="fas fa-map-marker-alt"></i> Место</div>
         <div class="context-item" data-action="rename"><i class="fas fa-pen"></i> Переименовать</div>
         <div class="context-item" data-action="delete"><i class="fas fa-trash"></i> Удалить</div>
     `;
@@ -1186,6 +1196,8 @@ function showFileContextMenu(x, y, item) {
                 currentDesktopItems = currentDesktopItems.filter(i => i.id !== item.id);
                 renderDesktop();
                 saveToFirebase();
+                } else if (action === 'location') {
+                openExplorer(item.parentId || null, item.id);
             } else if (action === 'open') {
                 if (item.type === 'folder') openFolderWindow(item);
                 else openFile(item);
