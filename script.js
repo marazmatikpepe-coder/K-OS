@@ -932,7 +932,123 @@ function openFolderWindow(folder) {
         dragData = null;
     });
 }
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' Б';
+    if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' КБ';
+    return (bytes / 1024 / 1024).toFixed(1) + ' МБ';
+}
 
+function getItemSize(item) {
+    if (item.type === 'folder') {
+        return currentDesktopItems
+            .filter(i => i.parentId === item.id)
+            .reduce((sum, i) => sum + getItemSize(i), 0);
+    }
+    return Math.ceil((item.content || '').length * 0.75);
+}
+
+function getItemIconClass(item) {
+    if (item.type === 'folder') return 'fa-folder';
+    const isImage = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
+    if (isImage) return 'fa-file-image';
+    if (item.name.endsWith('.exe') || item.name.endsWith('.ky')) return 'fa-cog';
+    if (item.name.endsWith('.txt') || item.name.endsWith('.doc')) return 'fa-file-alt';
+    return 'fa-file';
+}
+
+function openExplorer(folderId = null, highlightId = null) {
+    let win = document.getElementById('explorer-window');
+    if (win) {
+        focusWindow(win);
+        navigateExplorer(win, folderId, highlightId);
+        return;
+    }
+    win = createWindow({
+        title: 'Проводник',
+        icon: 'fa-folder-open',
+        width: 640,
+        height: 460,
+        body: `
+            <div class="explorer-layout">
+                <div class="explorer-sidebar">
+                    <div class="explorer-nav-item active" data-nav="root"><i class="fas fa-desktop"></i> Этот компьютер</div>
+                    <div class="explorer-nav-item" data-nav="trash"><i class="fas fa-trash-alt"></i> Корзина</div>
+                </div>
+                <div class="explorer-main">
+                    <div class="explorer-toolbar">
+                        <button class="explorer-back"><i class="fas fa-arrow-left"></i></button>
+                        <div class="explorer-path">Этот компьютер</div>
+                        <div class="explorer-size"></div>
+                    </div>
+                    <div class="explorer-list-header">
+                        <span>Содержимое</span>
+                    </div>
+                    <div class="explorer-content"></div>
+                </div>
+            </div>
+        `,
+        bodyStyle: 'padding: 0; display: flex; flex: 1; overflow: hidden;'
+    });
+    win.id = 'explorer-window';
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+
+    win.querySelector('[data-nav="root"]').onclick = () => navigateExplorer(win, null);
+    win.querySelector('[data-nav="trash"]').onclick = () => openTrash();
+
+    navigateExplorer(win, folderId, highlightId);
+}
+
+function navigateExplorer(win, folderId, highlightId) {
+    win.dataset.currentFolder = folderId || '';
+    const items = currentDesktopItems.filter(i => (i.parentId || null) === (folderId || null));
+    const pathEl = win.querySelector('.explorer-path');
+    const sizeEl = win.querySelector('.explorer-size');
+    const contentEl = win.querySelector('.explorer-content');
+    const backBtn = win.querySelector('.explorer-back');
+
+    let currentFolder = null;
+    let folderName = 'Этот компьютер';
+    if (folderId) {
+        currentFolder = currentDesktopItems.find(i => i.id == folderId);
+        if (currentFolder) folderName = currentFolder.name;
+    }
+    pathEl.textContent = folderName;
+
+    const totalBytes = items.reduce((sum, it) => sum + getItemSize(it), 0);
+    sizeEl.textContent = `Место: ${formatSize(totalBytes)}`;
+
+    backBtn.style.visibility = folderId ? 'visible' : 'hidden';
+    backBtn.onclick = () => {
+        const parentId = currentFolder ? currentFolder.parentId : null;
+        navigateExplorer(win, parentId || null);
+    };
+
+    contentEl.innerHTML = '';
+    if (items.length === 0) {
+        contentEl.innerHTML = '<div class="explorer-empty">Здесь пусто</div>';
+        return;
+    }
+    items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'explorer-row' + (highlightId && item.id == highlightId ? ' highlight' : '');
+        row.innerHTML = `
+            <i class="fas ${getItemIconClass(item)}"></i>
+            <span class="explorer-row-name">${item.name}</span>
+            <span class="explorer-row-size">${formatSize(getItemSize(item))}</span>
+        `;
+        row.onclick = () => {
+            if (item.type === 'folder') navigateExplorer(win, item.id);
+            else openFile(item);
+        };
+        contentEl.appendChild(row);
+    });
+    if (highlightId) {
+        const el = contentEl.querySelector('.highlight');
+        if (el) el.scrollIntoView({ block: 'nearest' });
+    }
+}
 function openTrash() {
     const existing = document.getElementById('trash-window');
     if (existing) {
