@@ -977,21 +977,23 @@ function openExplorer(folderId = null, highlightId = null) {
         icon: 'fa-folder-open',
         width: 640,
         height: 460,
-        body: `
+    body: `
             <div class="explorer-layout">
                 <div class="explorer-sidebar">
-                    <div class="explorer-nav-item active" data-nav="root"><i class="fas fa-desktop"></i> Этот компьютер</div>
-                    <div class="explorer-nav-item" data-nav="trash"><i class="fas fa-trash-alt"></i> Корзина</div>
+                    <div class="explorer-nav-item active" data-nav="root" title="Этот компьютер"><i class="fas fa-desktop"></i></div>
+                    <div class="explorer-nav-item" data-nav="removable" title="Съёмный диск"><i class="fas fa-hdd"></i></div>
+                    <div class="explorer-nav-item" data-nav="apps" title="Приложения"><i class="fas fa-th-large"></i></div>
+                    <div class="explorer-sidebar-spacer"></div>
+                    <div class="explorer-nav-item" data-nav="trash" title="Корзина"><i class="fas fa-trash-alt"></i></div>
                 </div>
                 <div class="explorer-main">
                     <div class="explorer-toolbar">
                         <button class="explorer-back"><i class="fas fa-arrow-left"></i></button>
-                        <div class="explorer-path">Этот компьютер</div>
+                        <i class="fas fa-th"></i>
+                        <div class="explorer-path">Файлы</div>
                         <div class="explorer-size"></div>
                     </div>
-                    <div class="explorer-list-header">
-                        <span>Содержимое</span>
-                    </div>
+                    <div class="explorer-list-header">содержимое:</div>
                     <div class="explorer-content"></div>
                 </div>
             </div>
