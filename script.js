@@ -959,7 +959,7 @@ function getItemSize(item) {
 function getItemIconClass(item) {
     if (item.type === 'folder') return 'fa-folder';
     const isImage = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
-    if (isImage) return 'fa-file-image';
+    if (isImage) return 'fa-image';
     if (item.name.endsWith('.exe') || item.name.endsWith('.ky')) return 'fa-cog';
     if (item.name.endsWith('.txt') || item.name.endsWith('.doc')) return 'fa-file-alt';
     return 'fa-file';
