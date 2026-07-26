@@ -4,7 +4,10 @@ import {
     signInWithEmailAndPassword, 
     signOut, 
     onAuthStateChanged,
-    updateProfile
+    updateProfile,
+    updatePassword,
+    reauthenticateWithCredential,
+    EmailAuthProvider
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
     doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove 
@@ -2640,14 +2643,27 @@ function showKsSection(win, section) {
                 </div>
                 <div class="ks-card">
                     <h4>Безопасность</h4>
-                    <button class="ks-btn secondary" id="ks-change-password" style="margin-top:8px;">Сменить пароль</button>
+                    <button class="ks-btn secondary" id="ks-change-password" style="margin-top:8px;">Сменить пароль аккаунта</button>
                     <button class="ks-btn secondary" id="ks-signout" style="margin-top:8px;margin-left:8px;">Выйти из аккаунта</button>
+                </div>
+                <div class="ks-card">
+                    <h4>Экран блокировки</h4>
+                    <p style="font-size:12px;opacity:0.5;margin-top:4px;">${systemConfig.password ? 'Пароль установлен — запрашивается при каждом входе в K-OS' : 'Пароль не установлен — экран блокировки не показывается'}</p>
+                    <button class="ks-btn secondary" id="ks-change-lock-password" style="margin-top:12px;">${systemConfig.password ? 'Сменить пароль' : 'Установить пароль'}</button>
+                    ${systemConfig.password ? '<button class="ks-btn secondary" id="ks-remove-lock-password" style="margin-top:12px;margin-left:8px;">Убрать пароль</button>' : ''}
                 </div>
             `;
             content.querySelector('#ks-edit-profile').onclick = () => editProfileKs(win);
             content.querySelector('#ks-avatar').onclick = () => changeAvatarKs(win);
             content.querySelector('#ks-change-password').onclick = () => changePasswordKs();
             content.querySelector('#ks-signout').onclick = () => signOut(auth);
+            content.querySelector('#ks-change-lock-password').onclick = () => changeLockPasswordKs(win);
+            content.querySelector('#ks-remove-lock-password')?.addEventListener('click', () => {
+                systemConfig.password = null;
+                saveToFirebase();
+                showKsSection(win, 'account');
+                Swal.fire({ title: 'Пароль убран', text: 'Экран блокировки больше не будет запрашивать пароль', icon: 'success', background: '#1a1a2e', color: '#fff' });
+            });
             break;
         case 'devices':
             const isVisible = document.visibilityState === 'visible';
@@ -3029,24 +3045,85 @@ function editProfileKs(win) {
 
 function changePasswordKs() {
     Swal.fire({
-        title: 'Сменить пароль',
+        title: 'Сменить пароль аккаунта',
         html: `
-            <input id="swal-old-pass" class="swal2-input" type="password" placeholder="Старый пароль" style="margin-bottom:8px;">
-            <input id="swal-new-pass" class="swal2-input" type="password" placeholder="Новый пароль">
+            <input id="swal-old-pass" class="swal2-input" type="password" placeholder="Текущий пароль" style="margin-bottom:8px;">
+            <input id="swal-new-pass" class="swal2-input" type="password" placeholder="Новый пароль (мин. 6 символов)">
         `,
         background: '#1a1a2e',
         color: '#fff',
         showCancelButton: true,
         confirmButtonText: 'Сменить',
-        preConfirm: () => {
+        preConfirm: async () => {
+            const oldPass = document.getElementById('swal-old-pass').value;
             const newPass = document.getElementById('swal-new-pass').value;
-            if (newPass && newPass.length >= 6) {
-                currentUser.updatePassword(newPass).then(() => {
-                    Swal.fire({ title: 'Пароль изменён!', icon: 'success', background: '#1a1a2e', color: '#fff' });
-                }).catch(e => {
-                    Swal.fire({ title: 'Ошибка', text: 'Нужна повторная аутентификация. Перезайдите в аккаунт.', icon: 'error', background: '#1a1a2e', color: '#fff' });
-                });
+            if (!oldPass) {
+                Swal.showValidationMessage('Введите текущий пароль');
+                return false;
             }
+            if (!newPass || newPass.length < 6) {
+                Swal.showValidationMessage('Новый пароль должен быть не короче 6 символов');
+                return false;
+            }
+            try {
+                const credential = EmailAuthProvider.credential(currentUser.email, oldPass);
+                await reauthenticateWithCredential(currentUser, credential);
+                await updatePassword(currentUser, newPass);
+                return true;
+            } catch (e) {
+                const msg = e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'
+                    ? 'Неверный текущий пароль'
+                    : 'Не удалось сменить пароль: ' + e.message;
+                Swal.showValidationMessage(msg);
+                return false;
+            }
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({ title: 'Пароль изменён!', icon: 'success', background: '#1a1a2e', color: '#fff' });
+        }
+    });
+}
+
+function changeLockPasswordKs(win) {
+    const hasPassword = !!systemConfig.password;
+    Swal.fire({
+        title: hasPassword ? 'Сменить пароль экрана блокировки' : 'Установить пароль экрана блокировки',
+        html: `
+            ${hasPassword ? '<input id="swal-lock-old" class="swal2-input" type="password" placeholder="Текущий пароль блокировки" style="margin-bottom:8px;">' : ''}
+            <input id="swal-lock-new" class="swal2-input" type="password" placeholder="Новый пароль">
+            <input id="swal-lock-confirm" class="swal2-input" type="password" placeholder="Повторите пароль">
+        `,
+        background: '#1a1a2e',
+        color: '#fff',
+        showCancelButton: true,
+        confirmButtonText: hasPassword ? 'Сменить' : 'Установить',
+        preConfirm: () => {
+            if (hasPassword) {
+                const oldPass = document.getElementById('swal-lock-old').value;
+                if (oldPass !== systemConfig.password) {
+                    Swal.showValidationMessage('Текущий пароль указан неверно');
+                    return false;
+                }
+            }
+            const newPass = document.getElementById('swal-lock-new').value;
+            const confirmPass = document.getElementById('swal-lock-confirm').value;
+            if (!newPass) {
+                Swal.showValidationMessage('Введите новый пароль');
+                return false;
+            }
+            if (newPass !== confirmPass) {
+                Swal.showValidationMessage('Пароли не совпадают');
+                return false;
+            }
+            systemConfig.password = newPass;
+            saveToFirebase();
+            return true;
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({ title: hasPassword ? 'Пароль изменён!' : 'Пароль установлен!', icon: 'success', background: '#1a1a2e', color: '#fff' });
+            if (win) showKsSection(win, 'account');
         }
     });
 }
@@ -3183,7 +3260,27 @@ async function saveToFirebase() {
         syncAllToCloud();
     } catch (e) {
         console.error('Save error:', e);
+        notifySaveError(e);
     }
+}
+
+let _lastSaveErrorNotice = 0;
+function notifySaveError(e) {
+    const now = Date.now();
+    if (now - _lastSaveErrorNotice < 15000) return; // не спамим уведомлениями
+    _lastSaveErrorNotice = now;
+    if (typeof Swal === 'undefined') return;
+    Swal.fire({
+        title: 'Не удалось сохранить',
+        text: 'Изменения (обои, расположение иконок и т.д.) не сохранились в облако: ' + (e?.code || e?.message || 'неизвестная ошибка'),
+        icon: 'warning',
+        background: '#1a1a2e',
+        color: '#fff',
+        toast: true,
+        position: 'bottom-end',
+        timer: 6000,
+        showConfirmButton: false
+    });
 }
 
 async function loadFromFirebase() {
@@ -3289,25 +3386,8 @@ function setAvatar(dataUrl) {
     if (dataUrl.startsWith('data:image')) syncImageToCloud(dataUrl, 'avatar');
 }
 // ================================================================
-// ===== ЭКСПОРТ КОНСТРУКТОРА ПРИЛОЖЕНИЙ В window (для onclick) =====
+// ===== ПОДСВЕТКА АКТИВНОГО ПУНКТА В САЙДБАРЕ КОНСТРУКТОРА =====
 // ================================================================
-Object.assign(window, {
-    openAppBuilder2, closeBuilder, renderBuilderView,
-    saveBuilderWeb, previewBuilderWeb,
-    saveWrk, exportKy, testApp, installApp,
-    loadProject, loadExample,
-    refreshBuilderPreview, loadBuilderRecent
-});
-
-// ===== ФИКС НАВИГАЦИИ В САЙДБАРЕ КОНСТРУКТОРА =====
-// (делегирование клика вместо битого onclick/класса)
-document.addEventListener('click', (e) => {
-    const nav = e.target.closest('.builder-nav');
-    if (!nav) return;
-    renderBuilderView(nav.dataset.view);
-});
-
-// подсветка активного пункта — теперь работает на правильном классе
 const _origRenderBuilderView = renderBuilderView;
 renderBuilderView = function(view) {
     _origRenderBuilderView(view);
@@ -3340,7 +3420,7 @@ document.querySelectorAll('.b-save-item').forEach(item => {
 });
 // Инициализация конструктора
 loadBuilderData();
-updateBuilderRecent();
+if (typeof updateBuilderRecent === 'function') updateBuilderRecent();
 console.log('✅ Конструктор приложений v3.0 готов!');
 console.log('📦 Форматы: .Wrk (проект), .Ky (приложение)');
 console.log('✅ K-OS полностью обновлён!');
