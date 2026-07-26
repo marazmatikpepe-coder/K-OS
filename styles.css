@@ -548,7 +548,7 @@ body {
     top: 20px;
     left: 20px;
     right: 20px;
-    bottom: 80px;
+    bottom: 150px;
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
@@ -610,7 +610,7 @@ body {
     left: 50%;
     transform: translateX(-50%);
     width: auto;
-    height: 70px;
+    height: 110px;
     background: rgba(30, 30, 40, 0.6);
     backdrop-filter: blur(20px);
     border-radius: 40px;
@@ -621,7 +621,7 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 6px 16px;
+    padding: 12px 24px;
     background: rgba(30, 30, 40, var(--glass-opacity, 0.7));
     backdrop-filter: blur(var(--glass-blur, 20px));
     -webkit-backdrop-filter: blur(var(--glass-blur, 20px));
@@ -633,8 +633,8 @@ body {
 }
 
 .dock-item {
-    width: 50px;
-    height: 50px;
+    width: 100px;
+    height: 100px;
     cursor: pointer;
     transition: all 0.2s ease;
     position: relative;
@@ -672,7 +672,7 @@ body {
 /* ========== СТАРТ МЕНЮ ========== */
 .start-menu {
     position: absolute;
-    bottom: 90px;
+    bottom: 150px;
     left: 50%;
     transform: translateX(-50%);
     width: 380px;
@@ -1066,13 +1066,13 @@ html, body {
     }
     
     .dock-items {
-        padding: 5px 15px !important;
+        padding: 8px 20px !important;
         gap: 10px !important;
     }
     
     .dock-item {
-        width: 40px !important;
-        height: 40px !important;
+        width: 70px !important;
+        height: 70px !important;
     }
     
     .desktop-icon {
@@ -1091,7 +1091,7 @@ html, body {
         width: 90% !important;
         left: 5% !important;
         transform: none !important;
-        bottom: 80px !important;
+        bottom: 110px !important;
     }
 }
 
@@ -1148,8 +1148,8 @@ html, body {
     }
     
     .dock-item {
-        width: 70px !important;
-        height: 70px !important;
+        width: 140px !important;
+        height: 140px !important;
     }
     
     .start-menu {
@@ -1203,7 +1203,7 @@ html, body {
     top: 20px;
     left: 20px;
     right: 20px;
-    bottom: 80px;
+    bottom: 150px;
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
@@ -1314,7 +1314,7 @@ html, body {
 /* Старт меню по центру снизу */
 .start-menu {
     position: absolute;
-    bottom: 90px;
+    bottom: 150px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 200;
@@ -1324,7 +1324,7 @@ html, body {
 /* На маленьких экранах старт меню прилипает к низу */
 @media (max-width: 600px) {
     .start-menu {
-        bottom: 80px;
+        bottom: 110px;
         left: 5%;
         transform: none;
         width: 90%;
