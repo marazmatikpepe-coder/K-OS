@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>K-OS — Ваша виртуальная операционная система</title>
-    <link rel="icon" type="image/png" href="https://i.ibb.co/20StnqXy/image.png">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100;14..32,200;14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="https://i.ibb.co/S48ChsmV/image.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100;14..32,200;14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
     <script type="module" src="firebase-config.js"></script>
@@ -18,15 +18,23 @@
     <div id="loading-screen">
         <div class="loading-container">
             <div class="loading-logo-glow"></div>
-            <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS" class="loading-logo">
+            <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS" class="loading-logo">
             <div class="loading-spinner">
                 <div class="spinner-ring"></div>
                 <div class="spinner-ring"></div>
                 <div class="spinner-ring"></div>
             </div>
             <div class="loading-text">K-OS</div>
-            <div class="loading-subtitle">Загрузка системы...</div>
+            <div class="loading-subtitle" id="loading-subtitle">Подготавливаем вашу операционную систему</div>
+            <div class="loading-percent" id="loading-percent">0%</div>
         </div>
+    </div>
+
+    <!-- ЭКРАН ПРИВЕТСТВИЯ (Hello) -->
+    <div id="hello-screen" style="display: none;">
+        <svg class="hello-svg" viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg">
+            <text id="hello-text" x="400" y="180" text-anchor="middle">Привет</text>
+        </svg>
     </div>
 
     <!-- ЭКРАН ВХОДА (Password) -->
@@ -36,10 +44,11 @@
                 <div class="gradient-orb orb-1"></div>
                 <div class="gradient-orb orb-2"></div>
                 <div class="gradient-orb orb-3"></div>
+                <div class="lock-photo-layer" id="lock-photo-layer"></div>
             </div>
             <div class="auth-card glass-panel">
                 <div class="auth-icon">
-                    <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS">
+                    <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS">
                 </div>
                 <h2>Добро пожаловать назад</h2>
                 <p class="auth-subtitle">Введите пароль для входа в K-OS</p>
@@ -66,7 +75,7 @@
                 <div class="auth-hero">
                     <div class="hero-content">
                         <div class="hero-logo">
-                            <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS">
+                            <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS">
                         </div>
                         <h1>K-OS</h1>
                         <p>Виртуальная операционная система нового поколения</p>
@@ -247,7 +256,7 @@
             <div class="dock-blur"></div>
             <div class="dock-items">
                 <div class="dock-item" id="start-button">
-                    <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS">
+                    <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS">
                     <span class="dock-tooltip">Меню Пуск</span>
                 </div>
             </div>
@@ -256,7 +265,7 @@
         <!-- МЕНЮ ПУСК -->
         <div id="start-menu" class="start-menu glass-panel" style="display: none;">
             <div class="start-header">
-                <img src="https://i.ibb.co/20StnqXy/image.png" alt="K-OS">
+                <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS">
                 <span>K-OS</span>
             </div>
             <div class="start-search">
