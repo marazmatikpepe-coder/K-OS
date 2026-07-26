@@ -13,6 +13,21 @@ import {
 const IMGBB_KEY = "cc09691527f520d75134d23712471d2c";
 const imageCache = new Map();
 
+const K_OS_LOGO = 'https://i.ibb.co/qMMwbsBg/KOS.png';
+const DEFAULT_WALLPAPERS = [
+    'https://i.ibb.co/ccvjPDC4/image-Picsart-Ai-Image-Enhancer.png',
+    'https://i.ibb.co/ymHCrZzL/image.jpg',
+    'https://i.ibb.co/yBYpDyMH/image.png'
+];
+const HELLO_GREETINGS = {
+    ru: 'Привет',
+    en: 'Hello',
+    es: 'Hola',
+    fr: 'Bonjour',
+    de: 'Hallo',
+    zh: '你好'
+};
+
 async function loadImage(url) {
     if (imageCache.has(url)) return imageCache.get(url);
     return new Promise((resolve) => {
@@ -60,6 +75,7 @@ let currentDesktopItems = [];
 let trashItems = [];
 let systemConfig = { 
     wallpaper: 'https://i.ibb.co/ccvjPDC4/image-Picsart-Ai-Image-Enhancer.png', 
+    lockWallpaper: null,
     language: 'ru', 
     theme: 'dark', 
     password: null,
@@ -122,6 +138,24 @@ function applyConfig() {
     document.documentElement.style.setProperty('--glass-opacity', systemConfig.glassOpacity || 0.6);
     document.documentElement.style.setProperty('--glass-blur', (systemConfig.glassBlur || 20) + 'px');
     document.documentElement.style.setProperty('--glass-border', systemConfig.glassBorder || 0.1);
+
+    const lockLayer = document.getElementById('lock-photo-layer');
+    if (lockLayer) {
+        let lockWp = systemConfig.lockWallpaper;
+        if (currentUser) {
+            const cachedLock = localStorage.getItem('lockWallpaper_' + currentUser.uid);
+            if (cachedLock) lockWp = cachedLock;
+        }
+        const authBg = lockLayer.closest('.auth-background');
+        if (lockWp) {
+            lockLayer.style.backgroundImage = 'url(' + lockWp + ')';
+            lockLayer.classList.add('active');
+            if (authBg) authBg.classList.add('has-photo');
+        } else {
+            lockLayer.classList.remove('active');
+            if (authBg) authBg.classList.remove('has-photo');
+        }
+    }
 }
 
 let autoSaveInterval = null;
@@ -137,6 +171,94 @@ function startAutoSave() {
 
 function showLoading(show) {
     loadingScreen.style.display = show ? 'flex' : 'none';
+}
+
+// ===== ЗАГРУЗКА С ПРОГРЕССОМ И ЭКРАН ПРИВЕТСТВИЯ =====
+let bootAssetsProgress = 0;
+let bootAuthReady = false;
+let bootTargetScreen = null;
+let bootExtraInit = null;
+let bootFinished = false;
+
+function updateBootProgress(ratio) {
+    const pct = Math.min(100, Math.round(ratio * 100));
+    const el = document.getElementById('loading-percent');
+    if (el) el.textContent = pct + '%';
+}
+
+function preloadAssets(urls, onProgress) {
+    let loaded = 0;
+    const total = urls.length || 1;
+    onProgress(0);
+    return Promise.all(urls.map(url => new Promise(resolve => {
+        const img = new Image();
+        const done = () => {
+            loaded++;
+            onProgress(loaded / total);
+            resolve();
+        };
+        img.onload = done;
+        img.onerror = done;
+        img.src = url;
+    })));
+}
+
+function bootPhaseUpdate() {
+    // 70% веса — кэширование картинок, 30% — ответ Firebase Auth
+    const combined = bootAssetsProgress * 0.7 + (bootAuthReady ? 0.3 : 0);
+    updateBootProgress(combined);
+    if (bootAssetsProgress >= 1 && bootAuthReady && !bootFinished) {
+        bootFinished = true;
+        finishBoot();
+    }
+}
+
+function startBootPreload() {
+    preloadAssets([K_OS_LOGO, ...DEFAULT_WALLPAPERS], (ratio) => {
+        bootAssetsProgress = ratio;
+        bootPhaseUpdate();
+    });
+}
+
+function finishBoot() {
+    updateBootProgress(1);
+    setTimeout(() => {
+        showLoading(false);
+        showHelloScreen(systemConfig.language || 'ru', () => {
+            if (bootTargetScreen) {
+                showScreen(bootTargetScreen);
+                if (typeof bootExtraInit === 'function') bootExtraInit();
+            }
+        });
+    }, 250);
+}
+
+function showHelloScreen(lang, callback) {
+    const screen = document.getElementById('hello-screen');
+    const textEl = document.getElementById('hello-text');
+    if (!screen || !textEl) { if (callback) callback(); return; }
+    const greeting = HELLO_GREETINGS[lang] || HELLO_GREETINGS.ru;
+    textEl.textContent = greeting;
+    textEl.classList.remove('drawing', 'filled');
+    textEl.style.strokeDasharray = '';
+    textEl.style.strokeDashoffset = '';
+    screen.style.display = 'flex';
+    requestAnimationFrame(() => {
+        screen.classList.add('visible');
+        const len = Math.max(200, textEl.getComputedTextLength() * 1.6);
+        textEl.style.strokeDasharray = len;
+        textEl.style.strokeDashoffset = len;
+        textEl.style.setProperty('--hello-len', len);
+        requestAnimationFrame(() => textEl.classList.add('drawing'));
+    });
+    setTimeout(() => textEl.classList.add('filled'), 1300);
+    setTimeout(() => {
+        screen.classList.remove('visible');
+        setTimeout(() => {
+            screen.style.display = 'none';
+            if (callback) callback();
+        }, 500);
+    }, 2200);
 }
 
 function showScreen(screen) {
@@ -2589,12 +2711,7 @@ function showKsSection(win, section) {
             };
             break;
         case 'personalize':
-            const wallpapers = [
-                systemConfig.wallpaper,
-                'https://i.ibb.co/ymHCrZzL/image.jpg',
-                'https://i.ibb.co/yBYpDyMH/image.png',
-                'https://i.ibb.co/ccvjPDC4/image-Picsart-Ai-Image-Enhancer.png'
-            ];
+            const wallpapers = [systemConfig.wallpaper, ...DEFAULT_WALLPAPERS];
             content.innerHTML = `
                 <h2 style="margin-bottom:20px;">Персонализация</h2>
                 <div class="ks-card">
@@ -2606,6 +2723,18 @@ function showKsSection(win, section) {
                     </div>
                     <button class="ks-btn secondary" style="margin-top:12px;" id="ks-upload-wall">📁 Загрузить свои обои</button>
                     <button class="ks-btn secondary" style="margin-top:8px;" id="ks-wall-from-desktop">🖼 Выбрать с рабочего стола</button>
+                </div>
+                <div class="ks-card">
+                    <h4>Обои экрана блокировки</h4>
+                    <p style="font-size:12px;opacity:0.5;margin-top:4px;">Отдельные обои для экрана ввода пароля</p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,100px));gap:10px;margin-top:12px;">
+                        <div class="ks-lock-item ks-lock-none" data-url="" style="height:65px;border-radius:10px;cursor:pointer;border:2px solid ${!systemConfig.lockWallpaper?'#667eea':'transparent'};background:repeating-conic-gradient(#2a2a3a 0% 25%, #1e1e2c 0% 50%) 50% / 16px 16px;display:flex;align-items:center;justify-content:center;font-size:10px;opacity:0.6;transition:all 0.2s;">по умолч.</div>
+                        ${[...new Set([systemConfig.lockWallpaper, ...DEFAULT_WALLPAPERS].filter(Boolean))].map(url => `
+                            <div class="ks-lock-item" data-url="${url}" style="height:65px;background-image:url(${url});background-size:cover;border-radius:10px;cursor:pointer;border:2px solid ${systemConfig.lockWallpaper===url?'#667eea':'transparent'};transition:all 0.2s;"></div>
+                        `).join('')}
+                    </div>
+                    <button class="ks-btn secondary" style="margin-top:12px;" id="ks-upload-lock-wall">📁 Загрузить свои обои</button>
+                    <button class="ks-btn secondary" style="margin-top:8px;" id="ks-lock-from-desktop-wall">🖥 Как на рабочем столе</button>
                 </div>
                 <div class="ks-card">
                     <h4>Тема</h4>
@@ -2629,6 +2758,46 @@ function showKsSection(win, section) {
                     showKsSection(win, 'personalize');
                 };
             });
+            content.querySelectorAll('.ks-lock-item').forEach(item => {
+                item.onclick = () => {
+                    systemConfig.lockWallpaper = item.dataset.url || null;
+                    if (currentUser) {
+                        if (systemConfig.lockWallpaper) {
+                            localStorage.setItem('lockWallpaper_' + currentUser.uid, systemConfig.lockWallpaper);
+                        } else {
+                            localStorage.removeItem('lockWallpaper_' + currentUser.uid);
+                        }
+                    }
+                    applyConfig();
+                    saveToFirebase();
+                    showKsSection(win, 'personalize');
+                };
+            });
+            content.querySelector('#ks-upload-lock-wall').onclick = () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        systemConfig.lockWallpaper = ev.target.result;
+                        if (currentUser) localStorage.setItem('lockWallpaper_' + currentUser.uid, systemConfig.lockWallpaper);
+                        applyConfig();
+                        saveToFirebase();
+                        showKsSection(win, 'personalize');
+                    };
+                    reader.readAsDataURL(file);
+                };
+                input.click();
+            };
+            content.querySelector('#ks-lock-from-desktop-wall').onclick = () => {
+                systemConfig.lockWallpaper = systemConfig.wallpaper;
+                if (currentUser) localStorage.setItem('lockWallpaper_' + currentUser.uid, systemConfig.lockWallpaper);
+                applyConfig();
+                saveToFirebase();
+                showKsSection(win, 'personalize');
+            };
             content.querySelector('#ks-upload-wall').onclick = () => {
                 const input = document.createElement('input');
                 input.type = 'file';
@@ -2911,6 +3080,8 @@ function loadAllFromLocalStorage() {
     const uid = currentUser.uid;
     const cachedWallpaper = localStorage.getItem('wallpaper_' + uid);
     if (cachedWallpaper) systemConfig.wallpaper = cachedWallpaper;
+    const cachedLockWallpaper = localStorage.getItem('lockWallpaper_' + uid);
+    if (cachedLockWallpaper) systemConfig.lockWallpaper = cachedLockWallpaper;
     const cachedAvatar = localStorage.getItem('avatar_' + uid);
     if (cachedAvatar) systemConfig.avatar = cachedAvatar;
     const cachedPositions = localStorage.getItem('iconPositions_' + uid);
@@ -2936,6 +3107,7 @@ function saveAllToLocalStorage() {
     if (!currentUser) return;
     const uid = currentUser.uid;
     if (systemConfig.wallpaper) localStorage.setItem('wallpaper_' + uid, systemConfig.wallpaper);
+    if (systemConfig.lockWallpaper) localStorage.setItem('lockWallpaper_' + uid, systemConfig.lockWallpaper);
     if (systemConfig.avatar) localStorage.setItem('avatar_' + uid, systemConfig.avatar);
     const positions = {};
     currentDesktopItems.forEach(item => {
@@ -2962,6 +3134,7 @@ async function syncImageToCloud(dataUrl, type) {
         if (json.success) {
             const url = json.data.url;
             if (type === 'wallpaper') systemConfig.wallpaper = url;
+            else if (type === 'lockWallpaper') systemConfig.lockWallpaper = url;
             else if (type === 'avatar') systemConfig.avatar = url;
             localStorage.setItem(type + '_' + currentUser.uid, url);
             await saveToFirebase();
@@ -2978,6 +3151,10 @@ async function syncAllToCloud() {
     const wallpaper = localStorage.getItem('wallpaper_' + uid);
     if (wallpaper && wallpaper.startsWith('data:image')) {
         await syncImageToCloud(wallpaper, 'wallpaper');
+    }
+    const lockWallpaper = localStorage.getItem('lockWallpaper_' + uid);
+    if (lockWallpaper && lockWallpaper.startsWith('data:image')) {
+        await syncImageToCloud(lockWallpaper, 'lockWallpaper');
     }
     const avatar = localStorage.getItem('avatar_' + uid);
     if (avatar && avatar.startsWith('data:image')) {
@@ -3035,8 +3212,10 @@ async function loadFromFirebase() {
             if (data.config) {
                 systemConfig = { ...systemConfig, ...data.config };
                 const localWallpaper = localStorage.getItem('wallpaper_' + currentUser.uid);
+                const localLockWallpaper = localStorage.getItem('lockWallpaper_' + currentUser.uid);
                 const localAvatar = localStorage.getItem('avatar_' + currentUser.uid);
                 if (localWallpaper) systemConfig.wallpaper = localWallpaper;
+                if (localLockWallpaper) systemConfig.lockWallpaper = localLockWallpaper;
                 if (localAvatar) systemConfig.avatar = localAvatar;
             }
             const localPinned = localStorage.getItem('pinnedApps_' + currentUser.uid);
@@ -3062,6 +3241,8 @@ async function loadFromFirebase() {
 }
 
 // ===== ОБНОВЛЁННАЯ AUTH STATE =====
+startBootPreload();
+
 onAuthStateChanged(auth, async (user) => {
     console.log("Auth state changed:", user ? "Пользователь есть" : "Нет пользователя");
     try {
@@ -3072,25 +3253,24 @@ onAuthStateChanged(auth, async (user) => {
             renderDesktop();
             renderTaskbar();
             await loadFromFirebase();
-            if (systemConfig.password) {
-                showScreen(loginScreen);
-            } else {
-                showScreen(desktop);
-            }
+            bootTargetScreen = systemConfig.password ? loginScreen : desktop;
+            bootExtraInit = null;
         } else {
             currentUser = null;
             currentDesktopItems = [];
             trashItems = [];
             pinnedApps = [];
             currentStep = 1;
-            showScreen(authScreen);
-            renderSetupStep();
+            bootTargetScreen = authScreen;
+            bootExtraInit = renderSetupStep;
         }
     } catch (error) {
         console.error("Ошибка при загрузке:", error);
-        showScreen(authScreen);
+        bootTargetScreen = authScreen;
+        bootExtraInit = renderSetupStep;
     } finally {
-        showLoading(false);
+        bootAuthReady = true;
+        bootPhaseUpdate();
     }
 });
 
