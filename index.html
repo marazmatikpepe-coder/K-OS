@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>K-OS — Ваша виртуальная операционная система</title>
-    <link rel="icon" type="image/png" href="https://i.ibb.co/QFF08MN1/k-logo2-transparent.png">
+    <link rel="icon" type="image/png" href="https://ltdfoto.ru/images/2026/07/30/k-logo2-transparent.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100;14..32,200;14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
@@ -14,11 +14,12 @@
 </head>
 <body>
 
+    <div id="brightness-overlay"></div>
     <!-- ЭКРАН ЗАГРУЗКИ -->
     <div id="loading-screen">
         <div class="loading-container">
             <div class="loading-logo-glow"></div>
-            <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS" class="loading-logo">
+            <img src="https://ltdfoto.ru/images/2026/07/30/LOGO.png" alt="K-OS" class="loading-logo">
             <div class="loading-spinner">
                 <div class="spinner-ring"></div>
                 <div class="spinner-ring"></div>
@@ -48,7 +49,7 @@
             </div>
             <div class="auth-card glass-panel">
                 <div class="auth-icon">
-                    <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS">
+                    <img src="https://ltdfoto.ru/images/2026/07/30/LOGO.png" alt="K-OS">
                 </div>
                 <h2>Добро пожаловать назад</h2>
                 <p class="auth-subtitle">Введите пароль для входа в K-OS</p>
@@ -75,7 +76,7 @@
                 <div class="auth-hero">
                     <div class="hero-content">
                         <div class="hero-logo">
-                            <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS">
+                            <img src="https://ltdfoto.ru/images/2026/07/30/LOGO.png" alt="K-OS">
                         </div>
                         <h1>K-OS</h1>
                         <p>Виртуальная операционная система нового поколения</p>
@@ -194,10 +195,10 @@
                     <div class="settings-section">
                         <h4>Обои</h4>
                         <div class="wallpapers-grid">
-                            <div class="wallpaper-item" data-wall="default" style="background-image: url('https://i.ibb.co/ccvjPDC4/image-Picsart-Ai-Image-Enhancer.png')"></div>
-                            <div class="wallpaper-item" data-wall="1" style="background-image: url('https://i.ibb.co/ymHCrZzL/image.jpg')"></div>
-                            <div class="wallpaper-item" data-wall="2" style="background-image: url('https://i.ibb.co/yBYpDyMH/image.png')"></div>
-                            <div class="wallpaper-item" data-wall="3" style="background-image: url('https://i.ibb.co/ccvjPDC4/image-Picsart-Ai-Image-Enhancer.png')"></div>
+                            <div class="wallpaper-item" data-wall="default" style="background-image: url('https://ltdfoto.ru/images/2026/07/30/218457.jpg')"></div>
+                            <div class="wallpaper-item" data-wall="1" style="background-image: url('https://ltdfoto.ru/images/2026/07/30/editing_result_4d58895d8bec11f1b2a5062592aad52e_1.jpg')"></div>
+                            <div class="wallpaper-item" data-wall="2" style="background-image: url('https://ltdfoto.ru/images/2026/07/30/052C6E.jpg')"></div>
+                            <div class="wallpaper-item" data-wall="3" style="background-image: url('https://ltdfoto.ru/images/2026/07/30/00733E.jpg')"></div>
                         </div>
                     </div>
 
@@ -256,8 +257,79 @@
             <div class="dock-blur"></div>
             <div class="dock-items">
                 <div class="dock-item" id="start-button">
-                    <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS">
+                    <img src="https://ltdfoto.ru/images/2026/07/30/LOGO.png" alt="K-OS">
                     <span class="dock-tooltip">Меню Пуск</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ТРЕЙ: WIFI/ГРОМКОСТЬ + ЧАСЫ (справа снизу) -->
+        <div class="tray-island glass-panel" id="tray-island">
+            <div class="tray-icon-btn" id="tray-wifi-btn" title="Сеть"><i class="fas fa-wifi"></i></div>
+            <div class="tray-icon-btn" id="tray-volume-btn" title="Звук"><i class="fas fa-volume-up" id="tray-volume-icon"></i></div>
+            <div class="tray-clock" id="tray-clock">
+                <div class="tray-time" id="tray-time">--:--</div>
+                <div class="tray-date" id="tray-date">-- ---</div>
+            </div>
+        </div>
+
+        <!-- ЦЕНТР УПРАВЛЕНИЯ (выезжает по клику на wifi/громкость) -->
+        <div class="control-center glass-panel" id="control-center" style="display:none;">
+            <div class="cc-toggles">
+                <div class="cc-toggle" id="cc-bluetooth" data-key="bluetooth">
+                    <i class="fab fa-bluetooth-b"></i>
+                    <span>Bluetooth</span>
+                </div>
+                <div class="cc-toggle" id="cc-airplane" data-key="airplane">
+                    <i class="fas fa-plane"></i>
+                    <span>Авиарежим</span>
+                </div>
+                <div class="cc-toggle" id="cc-powersave" data-key="powersave">
+                    <i class="fas fa-leaf"></i>
+                    <span>Энергосбережение</span>
+                </div>
+            </div>
+            <div class="cc-section" id="cc-network-section">
+                <div class="cc-section-title"><i class="fas fa-wifi"></i> <span id="cc-network-label">Интернет</span></div>
+                <div id="cc-network-body" class="cc-network-body"></div>
+            </div>
+            <div class="cc-row">
+                <i class="fas fa-sun cc-row-icon"></i>
+                <input type="range" id="cc-brightness" class="cc-slider" min="20" max="100" value="100">
+            </div>
+            <div class="cc-row">
+                <i class="fas fa-volume-up cc-row-icon" id="cc-volume-icon"></i>
+                <input type="range" id="cc-volume" class="cc-slider" min="0" max="100" value="80">
+                <div class="cc-dots" id="cc-audio-dots" title="Куда выводить звук"><i class="fas fa-ellipsis-v"></i></div>
+            </div>
+            <div class="cc-audio-menu" id="cc-audio-menu" style="display:none;"></div>
+        </div>
+
+        <!-- ПОГОДА (слева снизу) -->
+        <div class="weather-island glass-panel" id="weather-island">
+            <div class="weather-icon" id="weather-icon">⛅</div>
+            <div class="weather-brief">
+                <div class="weather-temp" id="weather-temp">--°</div>
+                <div class="weather-city" id="weather-city">Погода</div>
+            </div>
+            <div class="weather-hover-card glass-panel" id="weather-hover-card">
+                <div id="weather-geo-gate">
+                    <p style="font-size:13px;opacity:0.7;margin-bottom:10px;">Разрешите доступ к геолокации для точной погоды в вашем регионе</p>
+                    <label class="cc-switch-row">
+                        <span>Доступ к геолокации</span>
+                        <input type="checkbox" id="weather-geo-toggle">
+                    </label>
+                </div>
+                <div id="weather-full" style="display:none;">
+                    <div id="weather-map" class="weather-map"></div>
+                    <div class="weather-now">
+                        <span id="weather-now-icon" style="font-size:32px;">⛅</span>
+                        <div>
+                            <div class="weather-now-temp" id="weather-now-temp">--°C</div>
+                            <div class="weather-now-region" id="weather-now-region">—</div>
+                        </div>
+                    </div>
+                    <div class="weather-forecast" id="weather-forecast"></div>
                 </div>
             </div>
         </div>
@@ -265,7 +337,7 @@
         <!-- МЕНЮ ПУСК -->
         <div id="start-menu" class="start-menu glass-panel" style="display: none;">
             <div class="start-header">
-                <img src="https://i.ibb.co/qMMwbsBg/KOS.png" alt="K-OS">
+                <img src="https://ltdfoto.ru/images/2026/07/30/LOGO.png" alt="K-OS">
                 <span>K-OS</span>
             </div>
             <div class="start-search">
