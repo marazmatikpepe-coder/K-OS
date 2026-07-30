@@ -16,12 +16,18 @@ import {
 const IMGBB_KEY = "cc09691527f520d75134d23712471d2c";
 const imageCache = new Map();
 
-const K_OS_LOGO = 'https://i.ibb.co/qMMwbsBg/KOS.png';
-const DEFAULT_WALLPAPERS = [
-    'https://i.ibb.co/ccvjPDC4/image-Picsart-Ai-Image-Enhancer.png',
-    'https://i.ibb.co/ymHCrZzL/image.jpg',
-    'https://i.ibb.co/yBYpDyMH/image.png'
+const K_OS_LOGO = 'https://ltdfoto.ru/images/2026/07/30/LOGO.png';
+const WALLPAPER_PRESETS = [
+    { color: '#218457', url: 'https://ltdfoto.ru/images/2026/07/30/218457.jpg', label: 'Зелёный (по умолчанию)' },
+    { color: '#000000', url: 'https://ltdfoto.ru/images/2026/07/30/editing_result_4d58895d8bec11f1b2a5062592aad52e_1.jpg', label: 'Чёрный' },
+    { color: '#269926', url: 'https://ltdfoto.ru/images/2026/07/30/269926.jpg', label: 'Зелёный' },
+    { color: '#48036F', url: 'https://ltdfoto.ru/images/2026/07/30/48036F.jpg', label: 'Фиолетовый' },
+    { color: '#008500', url: 'https://ltdfoto.ru/images/2026/07/30/008500.jpg', label: 'Тёмно-зелёный' },
+    { color: '#00733E', url: 'https://ltdfoto.ru/images/2026/07/30/00733E.jpg', label: 'Изумрудный' },
+    { color: '#052C6E', url: 'https://ltdfoto.ru/images/2026/07/30/052C6E.jpg', label: 'Синий' },
+    { color: '#6A92D4', url: 'https://ltdfoto.ru/images/2026/07/30/6A92D4.jpg', label: 'Голубой' }
 ];
+const DEFAULT_WALLPAPERS = WALLPAPER_PRESETS.map(w => w.url);
 const HELLO_GREETINGS = {
     ru: 'Привет',
     en: 'Hello',
@@ -77,7 +83,7 @@ let currentUser = null;
 let currentDesktopItems = [];
 let trashItems = [];
 let systemConfig = { 
-    wallpaper: 'https://i.ibb.co/ccvjPDC4/image-Picsart-Ai-Image-Enhancer.png', 
+    wallpaper: WALLPAPER_PRESETS[0].url, 
     lockWallpaper: null,
     language: 'ru', 
     theme: 'dark', 
@@ -159,6 +165,13 @@ function applyConfig() {
             if (authBg) authBg.classList.remove('has-photo');
         }
     }
+
+    if (systemConfig.uiToggles) {
+        if (typeof applyPowerSaving === 'function') applyPowerSaving(systemConfig.uiToggles.powersave);
+        document.getElementById('tray-wifi-btn')?.classList.toggle('disabled', systemConfig.uiToggles.airplane);
+    }
+    if (typeof applyBrightness === 'function') applyBrightness();
+    if (typeof applySystemVolume === 'function') applySystemVolume();
 }
 
 let autoSaveInterval = null;
@@ -2727,14 +2740,18 @@ function showKsSection(win, section) {
             };
             break;
         case 'personalize':
+            const getWpColor = (url) => (WALLPAPER_PRESETS.find(w => w.url === url) || {}).color;
             const wallpapers = [systemConfig.wallpaper, ...DEFAULT_WALLPAPERS];
             content.innerHTML = `
                 <h2 style="margin-bottom:20px;">Персонализация</h2>
                 <div class="ks-card">
                     <h4>Обои рабочего стола</h4>
+                    <p style="font-size:12px;opacity:0.5;margin-top:4px;">Можно оставить базовый цвет или выбрать один из вариантов ниже</p>
                     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,100px));gap:10px;margin-top:12px;">
                         ${[...new Set(wallpapers)].map((url, i) => `
-                            <div class="ks-wall-item" data-url="${url}" style="height:65px;background-image:url(${url});background-size:cover;border-radius:10px;cursor:pointer;border:2px solid ${systemConfig.wallpaper===url?'#667eea':'transparent'};transition:all 0.2s;"></div>
+                            <div class="ks-wall-item" data-url="${url}" style="position:relative;height:65px;background-image:url(${url});background-size:cover;border-radius:10px;cursor:pointer;border:2px solid ${systemConfig.wallpaper===url?'#667eea':'transparent'};transition:all 0.2s;">
+                                ${getWpColor(url) ? `<span style="position:absolute;bottom:4px;right:4px;width:14px;height:14px;border-radius:50%;background:${getWpColor(url)};border:1.5px solid rgba(255,255,255,0.7);"></span>` : ''}
+                            </div>
                         `).join('')}
                     </div>
                     <button class="ks-btn secondary" style="margin-top:12px;" id="ks-upload-wall">📁 Загрузить свои обои</button>
@@ -3428,3 +3445,266 @@ console.log('✅ Сохранение в localStorage + Firebase + ImgBB');
 console.log('✅ Добавлен таскбар с управлением окнами');
 console.log('✅ Закрепление приложений на панели');
 console.log('✅ Контекстное меню для иконок таскбара');
+
+// ================================================================
+// ===== ТРЕЙ: ЧАСЫ, WIFI/ГРОМКОСТЬ, ЦЕНТР УПРАВЛЕНИЯ =====
+// ================================================================
+if (!systemConfig.uiToggles) systemConfig.uiToggles = { bluetooth: false, airplane: false, powersave: false };
+if (systemConfig.brightness === undefined) systemConfig.brightness = 100;
+if (systemConfig.volume === undefined) systemConfig.volume = 80;
+
+function updateTrayClock() {
+    const now = new Date();
+    const timeEl = document.getElementById('tray-time');
+    const dateEl = document.getElementById('tray-date');
+    if (timeEl) timeEl.textContent = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    if (dateEl) dateEl.textContent = now.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
+setInterval(updateTrayClock, 15000);
+updateTrayClock();
+
+function applyBrightness() {
+    const overlay = document.getElementById('brightness-overlay');
+    if (overlay) overlay.style.opacity = String((100 - systemConfig.brightness) / 100 * 0.85);
+}
+
+function applyPowerSaving(on) {
+    document.body.classList.toggle('power-saving-mode', !!on);
+}
+
+function toggleControlCenter(forceState) {
+    const cc = document.getElementById('control-center');
+    if (!cc) return;
+    const show = forceState !== undefined ? forceState : cc.style.display === 'none';
+    cc.style.display = show ? 'block' : 'none';
+    if (show) {
+        ['bluetooth', 'airplane', 'powersave'].forEach(key => {
+            document.getElementById('cc-' + key)?.classList.toggle('on', !!systemConfig.uiToggles[key]);
+        });
+        document.getElementById('tray-wifi-btn')?.classList.toggle('disabled', systemConfig.uiToggles.airplane);
+        renderNetworkStatus();
+        document.getElementById('cc-brightness').value = systemConfig.brightness;
+        document.getElementById('cc-volume').value = systemConfig.volume;
+    }
+}
+
+document.getElementById('tray-wifi-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleControlCenter();
+});
+document.getElementById('tray-volume-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleControlCenter();
+});
+document.addEventListener('click', (e) => {
+    const cc = document.getElementById('control-center');
+    if (!cc || cc.style.display === 'none') return;
+    if (!cc.contains(e.target) && e.target.id !== 'tray-wifi-btn' && e.target.id !== 'tray-volume-btn' && !e.target.closest('#tray-wifi-btn') && !e.target.closest('#tray-volume-btn')) {
+        cc.style.display = 'none';
+    }
+});
+
+// Переключатели: Bluetooth / Авиарежим / Энергосбережение
+['bluetooth', 'airplane', 'powersave'].forEach(key => {
+    const el = document.getElementById('cc-' + key);
+    if (!el) return;
+    el.classList.toggle('on', !!systemConfig.uiToggles[key]);
+    el.addEventListener('click', () => {
+        systemConfig.uiToggles[key] = !systemConfig.uiToggles[key];
+        el.classList.toggle('on', systemConfig.uiToggles[key]);
+        if (key === 'powersave') applyPowerSaving(systemConfig.uiToggles[key]);
+        if (key === 'airplane') renderNetworkStatus();
+        const wifiBtn = document.getElementById('tray-wifi-btn');
+        if (wifiBtn) wifiBtn.classList.toggle('disabled', systemConfig.uiToggles.airplane);
+        saveToFirebase();
+    });
+});
+applyPowerSaving(systemConfig.uiToggles.powersave);
+document.getElementById('tray-wifi-btn')?.classList.toggle('disabled', systemConfig.uiToggles.airplane);
+
+// Сеть: честный статус на основе реальных браузерных API (реальных Wi-Fi сетей браузер видеть не может)
+function renderNetworkStatus() {
+    const body = document.getElementById('cc-network-body');
+    const label = document.getElementById('cc-network-label');
+    if (!body) return;
+    if (systemConfig.uiToggles.airplane) {
+        label.textContent = 'Авиарежим';
+        body.innerHTML = '<div class="cc-net-item">Все подключения отключены</div>';
+        return;
+    }
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const online = navigator.onLine;
+    let typeLabel = 'Неизвестное подключение';
+    let icon = 'fa-wifi';
+    if (conn && conn.type) {
+        if (conn.type === 'wifi') { typeLabel = 'Wi-Fi'; }
+        else if (conn.type === 'ethernet') { typeLabel = 'Ethernet (кабель)'; icon = 'fa-ethernet'; }
+        else if (conn.type === 'cellular') { typeLabel = 'Мобильный интернет'; icon = 'fa-signal'; }
+        else if (conn.type === 'none') { typeLabel = 'Нет подключения'; }
+    } else if (conn && conn.effectiveType) {
+        typeLabel = 'Подключение (' + conn.effectiveType + ')';
+    }
+    label.innerHTML = '<i class="fas ' + icon + '"></i> Интернет';
+    body.innerHTML = `
+        <div class="cc-net-item current">
+            <span>${online ? typeLabel : 'Нет подключения к интернету'}</span>
+            <i class="fas ${online ? 'fa-check' : 'fa-times'}" style="opacity:0.7;"></i>
+        </div>
+        <div style="font-size:11px;opacity:0.4;margin-top:6px;">Браузер не даёт доступ к списку реальных Wi-Fi сетей — показан только статус текущего подключения</div>
+    `;
+}
+window.addEventListener('online', renderNetworkStatus);
+window.addEventListener('offline', renderNetworkStatus);
+
+// Яркость
+document.getElementById('cc-brightness')?.addEventListener('input', (e) => {
+    systemConfig.brightness = parseInt(e.target.value, 10);
+    applyBrightness();
+});
+document.getElementById('cc-brightness')?.addEventListener('change', () => saveToFirebase());
+applyBrightness();
+
+// Громкость (глобальный уровень для звуков K-OS + реальных <audio>/<video> на странице)
+function applySystemVolume() {
+    const v = systemConfig.volume / 100;
+    document.querySelectorAll('audio, video').forEach(el => { el.volume = v; });
+    const icon = document.getElementById('cc-volume-icon');
+    const trayIcon = document.getElementById('tray-volume-icon');
+    const iconClass = v === 0 ? 'fa-volume-mute' : v < 0.5 ? 'fa-volume-down' : 'fa-volume-up';
+    if (icon) icon.className = 'fas ' + iconClass + ' cc-row-icon';
+    if (trayIcon) trayIcon.className = 'fas ' + iconClass;
+}
+document.getElementById('cc-volume')?.addEventListener('input', (e) => {
+    systemConfig.volume = parseInt(e.target.value, 10);
+    applySystemVolume();
+});
+document.getElementById('cc-volume')?.addEventListener('change', () => saveToFirebase());
+applySystemVolume();
+
+// Выбор устройства вывода звука (реальный Web API там, где браузер поддерживает)
+document.getElementById('cc-audio-dots')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const menu = document.getElementById('cc-audio-menu');
+    if (navigator.mediaDevices && navigator.mediaDevices.selectAudioOutput) {
+        try {
+            const device = await navigator.mediaDevices.selectAudioOutput();
+            document.querySelectorAll('audio, video').forEach(el => { if (el.setSinkId) el.setSinkId(device.deviceId); });
+            menu.style.display = 'none';
+        } catch (err) { /* пользователь закрыл диалог */ }
+        return;
+    }
+    // Фолбэк для браузеров без Output Device Picker API
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const outputs = devices.filter(d => d.kind === 'audiooutput');
+        menu.innerHTML = outputs.length
+            ? outputs.map(d => `<div class="cc-audio-menu-item" data-id="${d.deviceId}">${d.label || 'Устройство вывода'}</div>`).join('')
+            : '<div class="cc-audio-menu-item" style="opacity:0.5;cursor:default;">Выбор устройства вывода недоступен в этом браузере</div>';
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    } catch {
+        menu.innerHTML = '<div class="cc-audio-menu-item" style="opacity:0.5;cursor:default;">Недоступно</div>';
+        menu.style.display = 'block';
+    }
+});
+
+// ================================================================
+// ===== ПОГОДА =====
+// ================================================================
+const WEATHER_ICONS = {
+    0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️',
+    45: '🌫️', 48: '🌫️',
+    51: '🌦️', 53: '🌦️', 55: '🌦️',
+    61: '🌧️', 63: '🌧️', 65: '🌧️',
+    71: '🌨️', 73: '🌨️', 75: '🌨️',
+    80: '🌦️', 81: '🌧️', 82: '⛈️',
+    95: '⛈️', 96: '⛈️', 99: '⛈️'
+};
+function weatherIconFor(code) { return WEATHER_ICONS[code] || '⛅'; }
+
+async function loadWeather(lat, lon) {
+    try {
+        const [weatherRes, geoRes] = await Promise.all([
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`),
+            fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=ru`).catch(() => null)
+        ]);
+        const data = await weatherRes.json();
+        let regionName = 'Ваш регион';
+        if (geoRes && geoRes.ok) {
+            const geo = await geoRes.json();
+            regionName = geo.city || geo.locality || geo.principalSubdivision || regionName;
+        }
+        const temp = Math.round(data.current.temperature_2m);
+        const icon = weatherIconFor(data.current.weather_code);
+
+        document.getElementById('weather-icon').textContent = icon;
+        document.getElementById('weather-temp').textContent = temp + '°';
+        document.getElementById('weather-city').textContent = regionName;
+        document.getElementById('weather-now-icon').textContent = icon;
+        document.getElementById('weather-now-temp').textContent = temp + '°C';
+        document.getElementById('weather-now-region').textContent = regionName;
+
+        const forecastEl = document.getElementById('weather-forecast');
+        const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+        forecastEl.innerHTML = data.daily.time.slice(0, 7).map((d, i) => {
+            const dayName = i === 0 ? 'Сегодня' : days[new Date(d).getDay()];
+            return `
+                <div class="weather-day">
+                    <span>${dayName}</span>
+                    <span class="weather-day-icon">${weatherIconFor(data.daily.weather_code[i])}</span>
+                    <span>${Math.round(data.daily.temperature_2m_max[i])}°/${Math.round(data.daily.temperature_2m_min[i])}°</span>
+                </div>
+            `;
+        }).join('');
+
+        const d = 0.15;
+        document.getElementById('weather-map').innerHTML = `<iframe src="https://www.openstreetmap.org/export/embed.html?bbox=${lon - d}%2C${lat - d}%2C${lon + d}%2C${lat + d}&layer=mapnik&marker=${lat}%2C${lon}" loading="lazy"></iframe>`;
+    } catch (e) {
+        console.error('Weather error:', e);
+    }
+}
+
+function initWeatherWidget() {
+    const toggle = document.getElementById('weather-geo-toggle');
+    const gate = document.getElementById('weather-geo-gate');
+    const full = document.getElementById('weather-full');
+    if (!toggle) return;
+
+    const cachedGeo = localStorage.getItem('weatherGeoEnabled');
+    if (cachedGeo === '1') {
+        toggle.checked = true;
+        requestGeoAndLoad();
+    }
+
+    toggle.addEventListener('change', () => {
+        if (toggle.checked) {
+            requestGeoAndLoad();
+        } else {
+            localStorage.setItem('weatherGeoEnabled', '0');
+            gate.style.display = 'block';
+            full.style.display = 'none';
+        }
+    });
+
+    function requestGeoAndLoad() {
+        if (!navigator.geolocation) {
+            Swal.fire({ title: 'Геолокация недоступна', text: 'Браузер не поддерживает геолокацию', icon: 'error', background: '#1a1a2e', color: '#fff' });
+            toggle.checked = false;
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                localStorage.setItem('weatherGeoEnabled', '1');
+                gate.style.display = 'none';
+                full.style.display = 'block';
+                loadWeather(pos.coords.latitude, pos.coords.longitude);
+            },
+            () => {
+                toggle.checked = false;
+                localStorage.setItem('weatherGeoEnabled', '0');
+                Swal.fire({ title: 'Доступ отклонён', text: 'Разрешите геолокацию в браузере, чтобы видеть погоду', icon: 'warning', background: '#1a1a2e', color: '#fff' });
+            },
+            { enableHighAccuracy: false, timeout: 10000 }
+        );
+    }
+}
+initWeatherWidget();
