@@ -100,6 +100,29 @@ body {
     margin-top: 8px;
 }
 
+#brightness-overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 99998;
+    transition: opacity 0.15s ease;
+}
+
+body.power-saving-mode .glass-panel,
+body.power-saving-mode .dock-items,
+body.power-saving-mode .dock-blur {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(20,20,30,0.92) !important;
+}
+
+body.power-saving-mode * {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+}
+
 .loading-percent {
     font-size: 13px;
     font-weight: 600;
@@ -651,6 +674,306 @@ body {
 
 .dock-item:hover {
     transform: translateY(-5px) scale(1.1);
+}
+
+/* ========== ТРЕЙ: WIFI/ГРОМКОСТЬ + ЧАСЫ ========== */
+.tray-island {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    cursor: default;
+}
+
+.tray-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 15px;
+    color: rgba(255,255,255,0.85);
+    transition: background 0.15s ease;
+}
+
+.tray-icon-btn:hover, .tray-icon-btn.active {
+    background: rgba(255,255,255,0.12);
+}
+
+.tray-icon-btn.disabled {
+    opacity: 0.35;
+}
+
+.tray-clock {
+    text-align: right;
+    line-height: 1.2;
+    padding-left: 4px;
+    cursor: pointer;
+}
+
+.tray-time {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.tray-date {
+    font-size: 11px;
+    opacity: 0.6;
+}
+
+/* ========== ЦЕНТР УПРАВЛЕНИЯ ========== */
+.control-center {
+    position: fixed;
+    bottom: 78px;
+    right: 20px;
+    width: 320px;
+    z-index: 950;
+    padding: 18px;
+    animation: slideUp 0.25s ease;
+}
+
+.cc-toggles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.cc-toggle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 6px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.06);
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s ease;
+}
+
+.cc-toggle i { font-size: 16px; }
+
+.cc-toggle.on {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+}
+
+.cc-section {
+    background: rgba(255,255,255,0.05);
+    border-radius: 14px;
+    padding: 12px;
+    margin-bottom: 14px;
+}
+
+.cc-section-title {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cc-network-body {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.cc-net-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 4px;
+    border-radius: 8px;
+}
+
+.cc-net-item.current {
+    background: rgba(102,126,234,0.18);
+}
+
+.cc-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    position: relative;
+}
+
+.cc-row-icon {
+    width: 18px;
+    text-align: center;
+    opacity: 0.8;
+}
+
+.cc-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.2);
+    outline: none;
+}
+
+.cc-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+}
+
+.cc-dots {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.cc-dots:hover {
+    background: rgba(255,255,255,0.1);
+    opacity: 1;
+}
+
+.cc-audio-menu {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    width: 220px;
+    background: rgba(20,20,30,0.95);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 6px;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.cc-audio-menu-item {
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.cc-audio-menu-item:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.cc-switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    gap: 10px;
+}
+
+/* ========== ПОГОДА ========== */
+.weather-island {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    cursor: pointer;
+}
+
+.weather-icon {
+    font-size: 24px;
+}
+
+.weather-brief {
+    line-height: 1.2;
+}
+
+.weather-temp {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.weather-city {
+    font-size: 11px;
+    opacity: 0.6;
+}
+
+.weather-hover-card {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: 12px;
+    width: 280px;
+    padding: 16px;
+    display: none;
+    cursor: default;
+}
+
+.weather-island:hover .weather-hover-card,
+.weather-hover-card.pinned {
+    display: block;
+}
+
+.weather-map {
+    width: 100%;
+    height: 140px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    background: rgba(255,255,255,0.05);
+}
+
+.weather-map iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.weather-now {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.weather-now-temp {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.weather-now-region {
+    font-size: 12px;
+    opacity: 0.6;
+}
+
+.weather-forecast {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+}
+
+.weather-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    opacity: 0.85;
+}
+
+.weather-day-icon {
+    font-size: 16px;
 }
 
 .dock-tooltip {
