@@ -550,7 +550,7 @@ function createDesktopIcon(item) {
         icon.style.left = item.x + 'px';
         icon.style.top = item.y + 'px';
     }
-    const isImage = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
+    const isImage = item.content && (item.content.startsWith('data:image') || /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(item.content));
     let iconClass = 'fa-file';
     if (item.type === 'folder') iconClass = 'fa-folder';
     else if (isImage) iconClass = '';
@@ -603,7 +603,7 @@ function createDesktopIcon(item) {
 }
 
 function openFile(item) {
-    const isImage = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
+    const isImage = item.content && (item.content.startsWith('data:image') || /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(item.content));
     const isExe = item.name.endsWith('.exe') || item.name.endsWith('.ky');
     if (isExe) {
         openExeApp(item);
@@ -859,6 +859,7 @@ function openNotepad(item) {
         };
     });
 }
+window.openNotepad = openNotepad;
 
 function createWindow(options) {
     const win = document.createElement('div');
@@ -1021,7 +1022,7 @@ function openFolderWindow(folder) {
                 icon.style.width = '70px';
                 const imgEl = icon.querySelector('.icon-img');
                 if (imgEl) {
-                    const isImg = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
+                    const isImg = item.content && (item.content.startsWith('data:image') || /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(item.content));
                     if (isImg) {
                         imgEl.style.width = '50px';
                         imgEl.style.height = '50px';
@@ -1096,7 +1097,7 @@ function getItemSize(item) {
 
 function getItemIconClass(item) {
     if (item.type === 'folder') return 'fa-folder';
-    const isImage = item.content && (item.content.startsWith('data:image') || item.content.startsWith('https://i.ibb.co'));
+    const isImage = item.content && (item.content.startsWith('data:image') || /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(item.content));
     if (isImage) return 'fa-image';
     if (item.name.endsWith('.exe') || item.name.endsWith('.ky')) return 'fa-cog';
     if (item.name.endsWith('.txt') || item.name.endsWith('.doc')) return 'fa-file-alt';
@@ -2899,6 +2900,10 @@ function showKsSection(win, section) {
             allApps.push({ name: 'Конструктор', icon: 'fa-code', id: 'builder' });
             allApps.push({ name: 'Настройки', icon: 'fa-cog', id: 'settings' });
             allApps.push({ name: 'Калькулятор', icon: 'fa-calculator', id: 'calculator' });
+            allApps.push({ name: 'Календарь', icon: 'fa-calendar-alt', id: 'calendar' });
+            allApps.push({ name: 'Диспетчер задач', icon: 'fa-tasks', id: 'taskmgr' });
+            allApps.push({ name: 'Терминал', icon: 'fa-terminal', id: 'terminal' });
+            allApps.push({ name: 'Галерея', icon: 'fa-images', id: 'gallery' });
             pinnedApps.forEach(app => {
                 if (!allApps.find(a => a.name === app.title)) {
                     allApps.push({ name: app.title, icon: app.icon || 'fa-window-maximize', id: app.id });
@@ -2931,6 +2936,10 @@ function showKsSection(win, section) {
                     else if (appId === 'builder') openAppBuilder2();
                     else if (appId === 'settings') {}
                     else if (appId === 'calculator') openCalculator();
+                    else if (appId === 'calendar') window.openCalendar();
+                    else if (appId === 'taskmgr') window.openTaskManager();
+                    else if (appId === 'terminal') window.openTerminal();
+                    else if (appId === 'gallery') window.openGallery();
                     else {
                         const item = currentDesktopItems.find(i => i.id == appId);
                         if (item) openFile(item);
@@ -3447,9 +3456,9 @@ console.log('✅ Закрепление приложений на панели')
 console.log('✅ Контекстное меню для иконок таскбара');
 
 // ================================================================
-// ===== ТРЕЙ: ЧАСЫ, WIFI/ГРОМКОСТЬ, ЦЕНТР УПРАВЛЕНИЯ =====
+// ===== ТРЕЙ: ЧАСЫ, ГРОМКОСТЬ, ЦЕНТР УПРАВЛЕНИЯ =====
 // ================================================================
-if (!systemConfig.uiToggles) systemConfig.uiToggles = { bluetooth: false, airplane: false, powersave: false };
+if (!systemConfig.uiToggles) systemConfig.uiToggles = { powersave: false };
 if (systemConfig.brightness === undefined) systemConfig.brightness = 100;
 if (systemConfig.volume === undefined) systemConfig.volume = 80;
 
@@ -3478,20 +3487,12 @@ function toggleControlCenter(forceState) {
     const show = forceState !== undefined ? forceState : cc.style.display === 'none';
     cc.style.display = show ? 'block' : 'none';
     if (show) {
-        ['bluetooth', 'airplane', 'powersave'].forEach(key => {
-            document.getElementById('cc-' + key)?.classList.toggle('on', !!systemConfig.uiToggles[key]);
-        });
-        document.getElementById('tray-wifi-btn')?.classList.toggle('disabled', systemConfig.uiToggles.airplane);
-        renderNetworkStatus();
+        document.getElementById('cc-powersave')?.classList.toggle('on', !!systemConfig.uiToggles.powersave);
         document.getElementById('cc-brightness').value = systemConfig.brightness;
         document.getElementById('cc-volume').value = systemConfig.volume;
     }
 }
 
-document.getElementById('tray-wifi-btn')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleControlCenter();
-});
 document.getElementById('tray-volume-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleControlCenter();
@@ -3499,62 +3500,23 @@ document.getElementById('tray-volume-btn')?.addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
     const cc = document.getElementById('control-center');
     if (!cc || cc.style.display === 'none') return;
-    if (!cc.contains(e.target) && e.target.id !== 'tray-wifi-btn' && e.target.id !== 'tray-volume-btn' && !e.target.closest('#tray-wifi-btn') && !e.target.closest('#tray-volume-btn')) {
+    if (!cc.contains(e.target) && e.target.id !== 'tray-volume-btn' && !e.target.closest('#tray-volume-btn')) {
         cc.style.display = 'none';
     }
 });
 
-// Переключатели: Bluetooth / Авиарежим / Энергосбережение
-['bluetooth', 'airplane', 'powersave'].forEach(key => {
-    const el = document.getElementById('cc-' + key);
-    if (!el) return;
-    el.classList.toggle('on', !!systemConfig.uiToggles[key]);
-    el.addEventListener('click', () => {
-        systemConfig.uiToggles[key] = !systemConfig.uiToggles[key];
-        el.classList.toggle('on', systemConfig.uiToggles[key]);
-        if (key === 'powersave') applyPowerSaving(systemConfig.uiToggles[key]);
-        if (key === 'airplane') renderNetworkStatus();
-        const wifiBtn = document.getElementById('tray-wifi-btn');
-        if (wifiBtn) wifiBtn.classList.toggle('disabled', systemConfig.uiToggles.airplane);
+// Энергосбережение — реально отключает блюр/анимации (единственный переключатель, который может быть настоящим)
+const ccPowersaveEl = document.getElementById('cc-powersave');
+if (ccPowersaveEl) {
+    ccPowersaveEl.classList.toggle('on', !!systemConfig.uiToggles.powersave);
+    ccPowersaveEl.addEventListener('click', () => {
+        systemConfig.uiToggles.powersave = !systemConfig.uiToggles.powersave;
+        ccPowersaveEl.classList.toggle('on', systemConfig.uiToggles.powersave);
+        applyPowerSaving(systemConfig.uiToggles.powersave);
         saveToFirebase();
     });
-});
-applyPowerSaving(systemConfig.uiToggles.powersave);
-document.getElementById('tray-wifi-btn')?.classList.toggle('disabled', systemConfig.uiToggles.airplane);
-
-// Сеть: честный статус на основе реальных браузерных API (реальных Wi-Fi сетей браузер видеть не может)
-function renderNetworkStatus() {
-    const body = document.getElementById('cc-network-body');
-    const label = document.getElementById('cc-network-label');
-    if (!body) return;
-    if (systemConfig.uiToggles.airplane) {
-        label.textContent = 'Авиарежим';
-        body.innerHTML = '<div class="cc-net-item">Все подключения отключены</div>';
-        return;
-    }
-    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    const online = navigator.onLine;
-    let typeLabel = 'Неизвестное подключение';
-    let icon = 'fa-wifi';
-    if (conn && conn.type) {
-        if (conn.type === 'wifi') { typeLabel = 'Wi-Fi'; }
-        else if (conn.type === 'ethernet') { typeLabel = 'Ethernet (кабель)'; icon = 'fa-ethernet'; }
-        else if (conn.type === 'cellular') { typeLabel = 'Мобильный интернет'; icon = 'fa-signal'; }
-        else if (conn.type === 'none') { typeLabel = 'Нет подключения'; }
-    } else if (conn && conn.effectiveType) {
-        typeLabel = 'Подключение (' + conn.effectiveType + ')';
-    }
-    label.innerHTML = '<i class="fas ' + icon + '"></i> Интернет';
-    body.innerHTML = `
-        <div class="cc-net-item current">
-            <span>${online ? typeLabel : 'Нет подключения к интернету'}</span>
-            <i class="fas ${online ? 'fa-check' : 'fa-times'}" style="opacity:0.7;"></i>
-        </div>
-        <div style="font-size:11px;opacity:0.4;margin-top:6px;">Браузер не даёт доступ к списку реальных Wi-Fi сетей — показан только статус текущего подключения</div>
-    `;
 }
-window.addEventListener('online', renderNetworkStatus);
-window.addEventListener('offline', renderNetworkStatus);
+applyPowerSaving(systemConfig.uiToggles.powersave);
 
 // Яркость
 document.getElementById('cc-brightness')?.addEventListener('input', (e) => {
@@ -3581,30 +3543,73 @@ document.getElementById('cc-volume')?.addEventListener('input', (e) => {
 document.getElementById('cc-volume')?.addEventListener('change', () => saveToFirebase());
 applySystemVolume();
 
-// Выбор устройства вывода звука (реальный Web API там, где браузер поддерживает)
+// Выбор устройства вывода звука — настоящий список с настоящими названиями
+async function unlockAudioDeviceLabels() {
+    // Названия устройств браузер скрывает, пока нет разрешения — запрашиваем микрофон
+    // только для того, чтобы получить реальные подписи, сам поток сразу останавливаем.
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function applySavedAudioOutput() {
+    if (!systemConfig.audioOutputId) return;
+    document.querySelectorAll('audio, video').forEach(el => {
+        if (el.setSinkId) el.setSinkId(systemConfig.audioOutputId).catch(() => {});
+    });
+}
+applySavedAudioOutput();
+
 document.getElementById('cc-audio-dots')?.addEventListener('click', async (e) => {
     e.stopPropagation();
     const menu = document.getElementById('cc-audio-menu');
+    if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
+
     if (navigator.mediaDevices && navigator.mediaDevices.selectAudioOutput) {
+        // Современный API: системный диалог выбора устройства вывода
         try {
             const device = await navigator.mediaDevices.selectAudioOutput();
-            document.querySelectorAll('audio, video').forEach(el => { if (el.setSinkId) el.setSinkId(device.deviceId); });
-            menu.style.display = 'none';
+            systemConfig.audioOutputId = device.deviceId;
+            applySavedAudioOutput();
+            saveToFirebase();
         } catch (err) { /* пользователь закрыл диалог */ }
         return;
     }
-    // Фолбэк для браузеров без Output Device Picker API
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const outputs = devices.filter(d => d.kind === 'audiooutput');
-        menu.innerHTML = outputs.length
-            ? outputs.map(d => `<div class="cc-audio-menu-item" data-id="${d.deviceId}">${d.label || 'Устройство вывода'}</div>`).join('')
-            : '<div class="cc-audio-menu-item" style="opacity:0.5;cursor:default;">Выбор устройства вывода недоступен в этом браузере</div>';
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-    } catch {
-        menu.innerHTML = '<div class="cc-audio-menu-item" style="opacity:0.5;cursor:default;">Недоступно</div>';
-        menu.style.display = 'block';
+
+    // Фолбэк: реальный список устройств вывода, с реальными названиями
+    menu.innerHTML = '<div class="cc-audio-menu-item" style="opacity:0.5;cursor:default;">Определяем устройства…</div>';
+    menu.style.display = 'block';
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    let outputs = devices.filter(d => d.kind === 'audiooutput');
+    const needsLabels = outputs.length && outputs.every(d => !d.label);
+    if (needsLabels) {
+        const granted = await unlockAudioDeviceLabels();
+        if (granted) {
+            devices = await navigator.mediaDevices.enumerateDevices();
+            outputs = devices.filter(d => d.kind === 'audiooutput');
+        }
     }
+    if (!outputs.length) {
+        menu.innerHTML = '<div class="cc-audio-menu-item" style="opacity:0.5;cursor:default;">Устройства вывода не найдены (нужен HTTPS)</div>';
+        return;
+    }
+    menu.innerHTML = outputs.map(d => `
+        <div class="cc-audio-menu-item ${systemConfig.audioOutputId === d.deviceId ? 'active' : ''}" data-id="${d.deviceId}">
+            ${d.label || 'Устройство вывода'}
+        </div>
+    `).join('');
+    menu.querySelectorAll('.cc-audio-menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+            systemConfig.audioOutputId = item.dataset.id;
+            applySavedAudioOutput();
+            saveToFirebase();
+            menu.style.display = 'none';
+        });
+    });
 });
 
 // ================================================================
@@ -3708,3 +3713,236 @@ function initWeatherWidget() {
     }
 }
 initWeatherWidget();
+
+// ================================================================
+// ===== КАЛЬКУЛЯТОР =====
+// ================================================================
+function safeCalcEval(expr) {
+    if (!/^[0-9+\-*/().,%\s]+$/.test(expr)) throw new Error('bad expr');
+    const normalized = expr.replace(/,/g, '.').replace(/%/g, '/100');
+    // eslint-disable-next-line no-new-func
+    return Function('"use strict"; return (' + normalized + ')')();
+}
+window.openCalculator = function() {
+    const existing = document.querySelector('[data-file-id="calculator-main"]');
+    if (existing) { focusWindow(existing); return; }
+    const win = createWindow({
+        title: 'Калькулятор', icon: 'fa-calculator', fileId: 'calculator-main',
+        width: 300, height: 420, resizable: false,
+        body: `
+            <div style="display:flex;flex-direction:column;height:100%;gap:10px;">
+                <input id="calc-display" readonly style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.2);border:none;border-radius:10px;padding:16px;font-size:28px;text-align:right;color:#fff;font-family:'Courier New',monospace;" value="0">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;flex:1;">
+                    ${['C','(',')','/','7','8','9','*','4','5','6','-','1','2','3','+','0','.','%','='].map(k => `
+                        <button class="calc-btn" data-k="${k}" style="border:none;border-radius:10px;background:${'=/*-+'.includes(k)?'linear-gradient(135deg,#667eea,#764ba2)':'rgba(255,255,255,0.08)'};color:#fff;font-size:18px;cursor:pointer;">${k}</button>
+                    `).join('')}
+                </div>
+            </div>
+        `,
+        bodyStyle: 'padding:16px;flex:1;display:flex;'
+    });
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+    const display = win.querySelector('#calc-display');
+    let expr = '';
+    win.querySelectorAll('.calc-btn').forEach(btn => {
+        btn.onclick = () => {
+            const k = btn.dataset.k;
+            if (k === 'C') { expr = ''; }
+            else if (k === '=') {
+                try { expr = String(safeCalcEval(expr)); } catch { expr = 'Ошибка'; }
+            } else { expr = expr === 'Ошибка' ? k : expr + k; }
+            display.value = expr || '0';
+        };
+    });
+};
+
+// ================================================================
+// ===== КАЛЕНДАРЬ =====
+// ================================================================
+function calDateKey(y, m, d) { return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+window.openCalendar = function() {
+    const existing = document.querySelector('[data-file-id="calendar-main"]');
+    if (existing) { focusWindow(existing); return; }
+    let view = new Date();
+    if (!systemConfig.calendarNotes) systemConfig.calendarNotes = {};
+    const win = createWindow({
+        title: 'Календарь', icon: 'fa-calendar-alt', fileId: 'calendar-main',
+        width: 380, height: 460, resizable: true,
+        body: `
+            <div style="display:flex;flex-direction:column;height:100%;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <button id="cal-prev" class="ks-btn secondary" style="padding:4px 12px;">‹</button>
+                    <div id="cal-title" style="font-weight:600;"></div>
+                    <button id="cal-next" class="ks-btn secondary" style="padding:4px 12px;">›</button>
+                </div>
+                <div id="cal-grid" style="flex:1;"></div>
+            </div>
+        `,
+        bodyStyle: 'padding:16px;flex:1;display:flex;flex-direction:column;'
+    });
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+    const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    const weekDays = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+    function render() {
+        const y = view.getFullYear(), m = view.getMonth();
+        win.querySelector('#cal-title').textContent = monthNames[m] + ' ' + y;
+        const first = new Date(y, m, 1);
+        const startOffset = (first.getDay() + 6) % 7;
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        const today = new Date();
+        let cells = weekDays.map(d => `<div style="opacity:0.4;font-size:11px;text-align:center;">${d}</div>`).join('');
+        for (let i = 0; i < startOffset; i++) cells += '<div></div>';
+        for (let d = 1; d <= daysInMonth; d++) {
+            const key = calDateKey(y, m, d);
+            const isToday = today.getFullYear() === y && today.getMonth() === m && today.getDate() === d;
+            const hasNote = !!systemConfig.calendarNotes[key];
+            cells += `<div class="cal-day" data-key="${key}" style="text-align:center;padding:8px 0;border-radius:8px;cursor:pointer;position:relative;${isToday ? 'background:linear-gradient(135deg,#667eea,#764ba2);' : ''}">${d}${hasNote ? '<div style="width:4px;height:4px;border-radius:50%;background:#ffaa44;margin:2px auto 0;"></div>' : ''}</div>`;
+        }
+        win.querySelector('#cal-grid').innerHTML = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">${cells}</div>`;
+        win.querySelectorAll('.cal-day').forEach(el => {
+            el.onclick = () => {
+                const key = el.dataset.key;
+                const current = systemConfig.calendarNotes[key] || '';
+                Swal.fire({
+                    title: key, input: 'text', inputValue: current,
+                    inputPlaceholder: 'Заметка на этот день',
+                    background: '#1a1a2e', color: '#fff', showCancelButton: true,
+                    confirmButtonText: 'Сохранить', cancelButtonText: current ? 'Удалить' : 'Закрыть'
+                }).then(res => {
+                    if (res.isConfirmed) {
+                        if (res.value) systemConfig.calendarNotes[key] = res.value;
+                        else delete systemConfig.calendarNotes[key];
+                        saveToFirebase();
+                        render();
+                    } else if (res.dismiss === Swal.DismissReason.cancel && current) {
+                        delete systemConfig.calendarNotes[key];
+                        saveToFirebase();
+                        render();
+                    }
+                });
+            };
+        });
+    }
+    win.querySelector('#cal-prev').onclick = () => { view.setMonth(view.getMonth() - 1); render(); };
+    win.querySelector('#cal-next').onclick = () => { view.setMonth(view.getMonth() + 1); render(); };
+    render();
+};
+
+// ================================================================
+// ===== ДИСПЕТЧЕР ЗАДАЧ =====
+// ================================================================
+window.openTaskManager = function() {
+    const existing = document.querySelector('[data-file-id="taskmgr-main"]');
+    if (existing) { focusWindow(existing); return; }
+    const win = createWindow({
+        title: 'Диспетчер задач', icon: 'fa-tasks', fileId: 'taskmgr-main',
+        width: 380, height: 420, resizable: true,
+        body: `<div id="taskmgr-list"></div>`,
+        bodyStyle: 'padding:16px;flex:1;overflow:auto;'
+    });
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+    function render() {
+        const list = win.querySelector('#taskmgr-list');
+        if (!list) { clearInterval(timer); return; }
+        const others = openWindows.filter(w => w !== win && w.isConnected);
+        list.innerHTML = others.length
+            ? others.map((w, i) => {
+                const title = w.querySelector('.window-title')?.textContent.trim() || 'Окно';
+                return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.05);margin-bottom:8px;">
+                    <span style="font-size:13px;">${title}</span>
+                    <button class="ks-btn secondary tm-close" data-i="${i}" style="padding:4px 10px;font-size:11px;">Завершить</button>
+                </div>`;
+            }).join('')
+            : '<p style="opacity:0.5;font-size:13px;">Других открытых окон нет</p>';
+        list.querySelectorAll('.tm-close').forEach(btn => {
+            btn.onclick = () => { closeWindow(others[parseInt(btn.dataset.i, 10)]); render(); };
+        });
+    }
+    const timer = setInterval(render, 1500);
+    render();
+};
+
+// ================================================================
+// ===== ТЕРМИНАЛ =====
+// ================================================================
+window.openTerminal = function() {
+    const existing = document.querySelector('[data-file-id="terminal-main"]');
+    if (existing) { focusWindow(existing); return; }
+    const win = createWindow({
+        title: 'Терминал', icon: 'fa-terminal', fileId: 'terminal-main',
+        width: 560, height: 380, resizable: true,
+        body: `
+            <div id="term-log" style="flex:1;overflow:auto;font-family:'Courier New',monospace;font-size:13px;line-height:1.5;white-space:pre-wrap;"></div>
+            <div style="display:flex;align-items:center;gap:6px;font-family:'Courier New',monospace;font-size:13px;margin-top:6px;">
+                <span style="opacity:0.5;">k-os&gt;</span>
+                <input id="term-input" style="flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:inherit;font-size:inherit;">
+            </div>
+        `,
+        bodyStyle: 'padding:14px;flex:1;display:flex;flex-direction:column;background:rgba(0,0,0,0.2);'
+    });
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+    const log = win.querySelector('#term-log');
+    const input = win.querySelector('#term-input');
+    function print(text) { log.innerHTML += text + '\n'; log.scrollTop = log.scrollHeight; }
+    print('K-OS Terminal. Наберите "help" для списка команд.');
+    input.focus();
+    input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const raw = input.value;
+        input.value = '';
+        print('k-os> ' + raw);
+        const [cmd, ...args] = raw.trim().split(/\s+/);
+        switch ((cmd || '').toLowerCase()) {
+            case '': break;
+            case 'help':
+                print('Команды: help, date, whoami, ls, echo <текст>, clear, ver, open <notepad|calculator|calendar|taskmgr|settings|kdraw|builder>');
+                break;
+            case 'date': print(new Date().toLocaleString('ru-RU')); break;
+            case 'whoami': print(currentUser?.displayName || currentUser?.email || 'гость'); break;
+            case 'ls': print(currentDesktopItems.map(i => i.name).join('  ') || '(пусто)'); break;
+            case 'echo': print(args.join(' ')); break;
+            case 'clear': log.innerHTML = ''; break;
+            case 'ver': print('K-OS — виртуальная операционная система'); break;
+            case 'open': {
+                const map = { notepad: () => openNotepad({ name: 'заметка.txt', content: '', id: Date.now() }), calculator: window.openCalculator, calendar: window.openCalendar, taskmgr: window.openTaskManager, settings: window.openSettings, kdraw: window.openKdraw, builder: window.openAppBuilder2 };
+                const fn = map[(args[0] || '').toLowerCase()];
+                if (fn) { fn(); print('Открываю ' + args[0] + '...'); } else print('Неизвестное приложение: ' + args[0]);
+                break;
+            }
+            default: print('Команда не найдена: ' + cmd);
+        }
+    });
+};
+
+// ================================================================
+// ===== ГАЛЕРЕЯ =====
+// ================================================================
+window.openGallery = function() {
+    const existing = document.querySelector('[data-file-id="gallery-main"]');
+    if (existing) { focusWindow(existing); return; }
+    const win = createWindow({
+        title: 'Галерея', icon: 'fa-images', fileId: 'gallery-main',
+        width: 640, height: 480, resizable: true,
+        body: `<div id="gallery-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;"></div>`,
+        bodyStyle: 'padding:16px;flex:1;overflow:auto;'
+    });
+    document.body.appendChild(win);
+    openWindows.push(win);
+    renderTaskbar();
+    const images = currentDesktopItems.filter(i => i.content && (i.content.startsWith('data:image') || /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(i.content)));
+    const grid = win.querySelector('#gallery-grid');
+    grid.innerHTML = images.length
+        ? images.map(i => `<div style="aspect-ratio:1;background-image:url(${i.content});background-size:cover;background-position:center;border-radius:10px;cursor:pointer;" data-url="${i.content}" title="${i.name}"></div>`).join('')
+        : '<p style="opacity:0.5;font-size:13px;grid-column:1/-1;">На рабочем столе пока нет изображений</p>';
+    grid.querySelectorAll('[data-url]').forEach(el => {
+        el.onclick = () => Swal.fire({ imageUrl: el.dataset.url, imageAlt: 'preview', background: '#1a1a2e', showConfirmButton: false, showCloseButton: true, width: 'min(90vw,700px)' });
+    });
+};
