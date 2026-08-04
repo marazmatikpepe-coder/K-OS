@@ -265,7 +265,6 @@
 
         <!-- ТРЕЙ: WIFI/ГРОМКОСТЬ + ЧАСЫ (справа снизу) -->
         <div class="tray-island glass-panel" id="tray-island">
-            <div class="tray-icon-btn" id="tray-wifi-btn" title="Сеть"><i class="fas fa-wifi"></i></div>
             <div class="tray-icon-btn" id="tray-volume-btn" title="Звук"><i class="fas fa-volume-up" id="tray-volume-icon"></i></div>
             <div class="tray-clock" id="tray-clock">
                 <div class="tray-time" id="tray-time">--:--</div>
@@ -273,25 +272,13 @@
             </div>
         </div>
 
-        <!-- ЦЕНТР УПРАВЛЕНИЯ (выезжает по клику на wifi/громкость) -->
+        <!-- ЦЕНТР УПРАВЛЕНИЯ (выезжает по клику на громкость) -->
         <div class="control-center glass-panel" id="control-center" style="display:none;">
-            <div class="cc-toggles">
-                <div class="cc-toggle" id="cc-bluetooth" data-key="bluetooth">
-                    <i class="fab fa-bluetooth-b"></i>
-                    <span>Bluetooth</span>
-                </div>
-                <div class="cc-toggle" id="cc-airplane" data-key="airplane">
-                    <i class="fas fa-plane"></i>
-                    <span>Авиарежим</span>
-                </div>
+            <div class="cc-toggles cc-toggles-single">
                 <div class="cc-toggle" id="cc-powersave" data-key="powersave">
                     <i class="fas fa-leaf"></i>
                     <span>Энергосбережение</span>
                 </div>
-            </div>
-            <div class="cc-section" id="cc-network-section">
-                <div class="cc-section-title"><i class="fas fa-wifi"></i> <span id="cc-network-label">Интернет</span></div>
-                <div id="cc-network-body" class="cc-network-body"></div>
             </div>
             <div class="cc-row">
                 <i class="fas fa-sun cc-row-icon"></i>
@@ -348,12 +335,15 @@
                 <div class="apps-section">
                     <h4>Приложения</h4>
                     <div class="app-list">
-                        <div class="app-item" data-app="notepad"><i class="fas fa-edit"></i> Блокнот</div>
-                        <div class="app-item" data-app="gallery"><i class="fas fa-images"></i> Галерея</div>
-                      <div class="app-item" data-app="kdraw" onclick="window.openKdraw()"><i class="fas fa-paint-brush"></i> K-draw</div>
+                        <div class="app-item" onclick="window.openNotepad({name:'заметка.txt',content:'',id:Date.now()})"><i class="fas fa-edit"></i> Блокнот</div>
+                        <div class="app-item" onclick="window.openGallery()"><i class="fas fa-images"></i> Галерея</div>
+                        <div class="app-item" onclick="window.openKdraw()"><i class="fas fa-paint-brush"></i> K-draw</div>
                         <div class="app-item" onclick="openAppBuilder2()"><i class="fas fa-code"></i> Конструктор приложений</div>
                         <div class="app-item" onclick="window.openSettings()"><i class="fas fa-cog"></i> Настройки</div>
                         <div class="app-item" onclick="window.openTerminal()"><i class="fas fa-terminal"></i> Терминал</div>
+                        <div class="app-item" onclick="window.openCalculator()"><i class="fas fa-calculator"></i> Калькулятор</div>
+                        <div class="app-item" onclick="window.openCalendar()"><i class="fas fa-calendar-alt"></i> Календарь</div>
+                        <div class="app-item" onclick="window.openTaskManager()"><i class="fas fa-tasks"></i> Диспетчер задач</div>
                     </div>
                 </div>
                 <div class="apps-section">
