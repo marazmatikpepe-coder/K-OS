@@ -745,6 +745,10 @@ body.power-saving-mode * {
     margin-bottom: 16px;
 }
 
+.cc-toggles-single {
+    grid-template-columns: 1fr;
+}
+
 .cc-toggle {
     display: flex;
     flex-direction: column;
@@ -756,6 +760,14 @@ body.power-saving-mode * {
     cursor: pointer;
     font-size: 11px;
     transition: all 0.15s ease;
+}
+
+.cc-toggles-single .cc-toggle {
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    font-size: 13px;
+    padding: 12px;
 }
 
 .cc-toggle i { font-size: 16px; }
@@ -868,6 +880,11 @@ body.power-saving-mode * {
 
 .cc-audio-menu-item:hover {
     background: rgba(255,255,255,0.08);
+}
+
+.cc-audio-menu-item.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
 }
 
 .cc-switch-row {
