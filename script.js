@@ -666,24 +666,127 @@ icon.addEventListener('drop', (e) => {
     return icon;
 }
 
-function openFile(item) {
-    const isImage = item.content && (item.content.startsWith('data:image') || /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(item.content));
-    const isExe = item.name.endsWith('.exe') || item.name.endsWith('.ky');
-    if (isExe) {
-        openExeApp(item);
-    } else if (isImage) {
-        openImageViewer(item);
-    } else if (item.name.endsWith('.txt') || item.name.endsWith('.doc')) {
-        openNotepad(item);
-    } else {
-        Swal.fire({
-            title: 'Неизвестный файл',
-            text: `Не могу открыть ${item.name}`,
-            icon: 'info',
-            background: '#1a1a2e',
-            color: '#fff'
-        });
-    }
+function openFile(item, mode = 'auto') {
+const ext = item.name.split('.').pop().toLowerCase();
+const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(item.name);
+const isCode = /\.(js|html|css|json)$/i.test(item.name);
+const isExe = /\.(exe|ky)$/i.test(item.name);
+const isText = /\.(txt|doc|docx|md)$/i.test(item.name);
+
+// Режимы открытия: 'auto', 'notepad', 'viewer', 'reader'
+if (mode === 'auto') {
+if (isImage) mode = 'viewer';
+else if (isExe) mode = 'viewer';
+else if (isCode) mode = 'viewer';
+else if (isText) mode = 'notepad';
+else mode = 'notepad';
+}
+
+if (mode === 'viewer' && (isImage || isExe || isCode)) {
+if (isImage) {
+openImageViewer(item);
+} else if (isExe) {
+openExeApp(item);
+} else if (isCode) {
+openCodeViewer(item);
+}
+} else if (mode === 'reader' && (isText || isCode)) {
+openReaderMode(item);
+} else {
+openNotepad(item);
+}
+}
+function openCodeViewer(item) {
+const existing = document.querySelector(`[data-file-id="${item.id}"]`);
+if (existing) {
+focusWindow(existing);
+return;
+}
+
+const ext = item.name.split('.').pop().toLowerCase();
+let content = item.content || '';
+
+// Если это HTML/JS - показываем в iframe
+if (ext === 'html' || ext === 'js') {
+const win = createWindow({
+title: item.name,
+icon: ext === 'html' ? 'fa-code' : 'fa-file-code',
+fileId: item.id,
+width: 800,
+height: 600,
+body: `
+<iframe
+sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+style="width: 100%; height: 100%; border: none; background: white; border-radius: 0 0 16px 16px;"
+srcdoc="${content.replace(/"/g, '&quot;').replace(/`/g, '&#96;').replace(/\n/g, ' ')}"
+></iframe>
+`,
+bodyStyle: 'padding: 0; flex: 1; overflow: hidden; border-radius: 0 0 20px 20px;'
+});
+document.body.appendChild(win);
+openWindows.push(win);
+renderTaskbar();
+} else {
+// Для CSS/JSON - показываем как текст с подсветкой
+openNotepad(item);
+}
+}
+
+function openReaderMode(item) {
+const existing = document.querySelector(`[data-file-id="${item.id}"]`);
+if (existing) {
+focusWindow(existing);
+return;
+}
+
+const win = createWindow({
+title: item.name + ' (Чтение)',
+icon: 'fa-book-reader',
+fileId: item.id,
+width: 700,
+height: 500,
+body: `
+<div style="padding: 30px; max-width: 100%; height: 100%; overflow-y: auto; background: rgba(0,0,0,0.1);">
+<div style="font-family: 'Georgia', serif; font-size: 16px; line-height: 1.8; color: #e0e0e0; white-space: pre-wrap;">${item.content || '(пусто)'}</div>
+</div>
+`,
+bodyStyle: 'padding: 0; flex: 1; overflow: hidden;'
+});
+document.body.appendChild(win);
+openWindows.push(win);
+renderTaskbar();
+}
+
+function convertFileToType(item, newExt) {
+const oldName = item.name;
+const baseName = oldName.substring(0, oldName.lastIndexOf('.')) || oldName;
+const newName = baseName + '.' + newExt;
+
+Swal.fire({
+title: 'Конвертировать файл?',
+html: `<p>Из: <b>${oldName}</b></p><p>В: <b>${newName}</b></p>`,
+icon: 'question',
+showCancelButton: true,
+confirmButtonText: 'Конвертировать',
+cancelButtonText: 'Отмена',
+background: '#1a1a2e',
+color: '#fff'
+}).then(result => {
+if (result.isConfirmed) {
+item.name = newName;
+saveToFirebase();
+renderDesktop();
+Swal.fire({
+title: 'Конвертировано!',
+text: `Файл переименован в ${newName}`,
+icon: 'success',
+timer: 1500,
+showConfirmButton: false,
+background: '#1a1a2e',
+color: '#fff'
+});
+}
+});
 }
 
 function openExeApp(item) {
@@ -1030,16 +1133,17 @@ function bringToFront(win) {
 }
 
 function startDrag(win, e) {
-    isDragging = true;
-    dragWindow = win;
-    const rect = win.getBoundingClientRect();
-    dragOffsetX = e.clientX - rect.left;
-    dragOffsetY = e.clientY - rect.top;
-    win.style.transform = 'none';
-    win.style.left = rect.left + 'px';
-    win.style.top = rect.top + 'px';
-    bringToFront(win);
-    focusWindow(win);
+isDragging = true;
+dragWindow = win;
+const rect = win.getBoundingClientRect();
+dragOffsetX = e.clientX - rect.left;
+dragOffsetY = e.clientY - rect.top;
+win.style.transform = 'none';
+win.style.left = rect.left + 'px';
+win.style.top = rect.top + 'px';
+win.classList.add('dragging'); // Отключаем анимации при перетаскивании
+bringToFront(win);
+focusWindow(win);
 }
 
 document.addEventListener('mousemove', (e) => {
@@ -1055,8 +1159,11 @@ document.addEventListener('mousemove', (e) => {
 });
 
 document.addEventListener('mouseup', () => {
-    isDragging = false;
-    dragWindow = null;
+isDragging = false;
+if (dragWindow) {
+dragWindow.classList.remove('dragging'); // Возвращаем анимации
+}
+dragWindow = null;
 });
 
 function openFolderWindow(folder) {
@@ -1474,45 +1581,105 @@ function restoreAllTrash() {
 }
 
 function showFileContextMenu(x, y, item) {
-    const desktopMenu = document.getElementById('context-menu');
-    if (desktopMenu) desktopMenu.style.display = 'none';
-    const menu = document.getElementById('file-context-menu');
-    if (!menu) return;
+const desktopMenu = document.getElementById('context-menu');
+if (desktopMenu) desktopMenu.style.display = 'none';
+const menu = document.getElementById('file-context-menu');
+if (!menu) return;
+
+const ext = item.name.split('.').pop().toLowerCase();
+const isText = /\.(txt|doc|docx|md)$/i.test(item.name);
+const isCode = /\.(js|html|css|json)$/i.test(item.name);
+
+let openSubmenu = '';
+if (isText || isCode) {
+openSubmenu = `
+<div class="context-item has-submenu" data-action="open-with">
+<i class="fas fa-folder-open"></i> Открыть с помощью <i class="fas fa-chevron-right" style="margin-left: auto; font-size: 10px;"></i>
+<div class="submenu" style="display: none; position: absolute; left: 100%; top: 0; min-width: 180px; background: rgba(30,30,40,0.95); backdrop-filter: blur(20px); border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); padding: 4px; margin-left: 4px;">
+<div class="context-item" data-action="open-notepad"><i class="fas fa-edit"></i> Блокнот</div>
+<div class="context-item" data-action="open-viewer"><i class="fas fa-eye"></i> Просмотр</div>
+<div class="context-item" data-action="open-reader"><i class="fas fa-book-reader"></i> Режим чтения</div>
+</div>
+</div>
+`;
+}
+
+let convertSubmenu = '';
+if (isText) {
+convertSubmenu = `
+<div class="context-item has-submenu" data-action="convert-to">
+<i class="fas fa-exchange-alt"></i> Конвертировать в <i class="fas fa-chevron-right" style="margin-left: auto; font-size: 10px;"></i>
+<div class="submenu" style="display: none; position: absolute; left: 100%; top: 0; min-width: 150px; background: rgba(30,30,40,0.95); backdrop-filter: blur(20px); border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); padding: 4px; margin-left: 4px;">
+<div class="context-item" data-action="convert-js"><i class="fas fa-file-code"></i> .js</div>
+<div class="context-item" data-action="convert-html"><i class="fas fa-code"></i> .html</div>
+<div class="context-item" data-action="convert-css"><i class="fas fa-paint-brush"></i> .css</div>
+</div>
+</div>
+`;
+}
+
 menu.innerHTML = `
-        <div class="context-item" data-action="open"><i class="fas fa-folder-open"></i> Открыть</div>
-        <div class="context-item" data-action="location"><i class="fas fa-map-marker-alt"></i> Место</div>
-        <div class="context-item" data-action="rename"><i class="fas fa-pen"></i> Переименовать</div>
-        <div class="context-item" data-action="delete"><i class="fas fa-trash"></i> Удалить</div>
-    `;
-    menu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
-    menu.style.top = Math.min(y, window.innerHeight - 180) + 'px';
-    menu.style.display = 'flex';
-    selectedFile = item;
-    menu.querySelectorAll('.context-item').forEach(btn => {
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            const action = btn.dataset.action;
-            if (action === 'rename') {
-                const newName = prompt('Новое имя:', item.name);
-                if (newName && newName.trim()) {
-                    item.name = newName.trim();
-                    renderDesktop();
-                    saveToFirebase();
-                }
-            } else if (action === 'delete') {
-                trashItems.push({ ...item });
-                currentDesktopItems = currentDesktopItems.filter(i => i.id !== item.id);
-                renderDesktop();
-                saveToFirebase();
-                } else if (action === 'location') {
-                openExplorer(item.parentId || null, item.id);
-            } else if (action === 'open') {
-                if (item.type === 'folder') openFolderWindow(item);
-                else openFile(item);
-            }
-            menu.style.display = 'none';
-        };
-    });
+<div class="context-item" data-action="open"><i class="fas fa-folder-open"></i> Открыть</div>
+${openSubmenu}
+${convertSubmenu}
+<div class="context-item" data-action="location"><i class="fas fa-map-marker-alt"></i> Место</div>
+<div class="context-item" data-action="rename"><i class="fas fa-pen"></i> Переименовать</div>
+<div class="context-item" data-action="delete"><i class="fas fa-trash"></i> Удалить</div>
+`;
+
+menu.style.left = Math.min(x, window.innerWidth - 250) + 'px';
+menu.style.top = Math.min(y, window.innerHeight - 250) + 'px';
+menu.style.display = 'flex';
+selectedFile = item;
+
+// Показ подменю при наведении
+menu.querySelectorAll('.has-submenu').forEach(submenuItem => {
+const submenu = submenuItem.querySelector('.submenu');
+submenuItem.addEventListener('mouseenter', () => {
+if (submenu) submenu.style.display = 'block';
+});
+submenuItem.addEventListener('mouseleave', () => {
+if (submenu) submenu.style.display = 'none';
+});
+});
+
+menu.querySelectorAll('.context-item').forEach(btn => {
+btn.onclick = (e) => {
+e.stopPropagation();
+const action = btn.dataset.action;
+if (action === 'rename') {
+const newName = prompt('Новое имя:', item.name);
+if (newName && newName.trim()) {
+item.name = newName.trim();
+renderDesktop();
+saveToFirebase();
+}
+} else if (action === 'delete') {
+trashItems.push({ ...item });
+currentDesktopItems = currentDesktopItems.filter(i => i.id !== item.id);
+renderDesktop();
+saveToFirebase();
+} else if (action === 'location') {
+openExplorer(item.parentId || null, item.id);
+} else if (action === 'open') {
+if (item.type === 'folder') openFolderWindow(item);
+else openFile(item);
+} else if (action === 'open-notepad') {
+openFile(item, 'notepad');
+} else if (action === 'open-viewer') {
+openFile(item, 'viewer');
+} else if (action === 'open-reader') {
+openFile(item, 'reader');
+} else if (action === 'convert-js') {
+convertFileToType(item, 'js');
+} else if (action === 'convert-html') {
+convertFileToType(item, 'html');
+} else if (action === 'convert-css') {
+convertFileToType(item, 'css');
+}
+menu.style.display = 'none';
+};
+});
 }
 
 function showTrashContext(x, y) {
