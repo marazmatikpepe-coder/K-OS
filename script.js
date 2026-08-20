@@ -4153,4 +4153,9 @@ window.openGallery = function() {
     grid.querySelectorAll('[data-url]').forEach(el => {
         el.onclick = () => Swal.fire({ imageUrl: el.dataset.url, imageAlt: 'preview', background: '#1a1a2e', showConfirmButton: false, showCloseButton: true, width: 'min(90vw,700px)' });
     });
-};
+};  // <-- ЭТА СКОБКА ДОЛЖНА БЫТЬ
+
+// ===== ВОТ ЭТО ДОБАВЬТЕ В САМЫЙ КОНЕЦ =====
+console.log('✅ K-OS загружен!');
+
+// Закрывающая скобка для всего файла
