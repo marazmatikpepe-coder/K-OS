@@ -2441,3 +2441,11 @@ body.light-theme .start-menu input {
 .explorer-row.highlight { background: rgba(102,126,234,0.2); }
 .explorer-row-name { flex: 1; font-size: 13px; }
 .explorer-row-size { opacity: 0.4; font-size: 12px; }
+/* Отключаем transition при перетаскивании для плавности */
+.floating-window.dragging {
+transition: none !important;
+}
+
+.floating-window.dragging * {
+transition: none !important;
+}
