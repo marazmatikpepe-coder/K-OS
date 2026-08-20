@@ -1208,7 +1208,7 @@ function openFolderWindow(folder) {
     
     dragData = null;
 });
-
+}
 function getItemSize(item) {
     if (item.type === 'folder') {
         return currentDesktopItems
