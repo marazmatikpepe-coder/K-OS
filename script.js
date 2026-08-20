@@ -574,6 +574,69 @@ function createDesktopIcon(item) {
         if (item.type === 'folder') openFolderWindow(item);
         else openFile(item);
     };
+    // Добавляем обработку перетаскивания НА иконку папки
+icon.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (item.type === 'folder') {
+        icon.style.background = 'rgba(102, 126, 234, 0.25)';
+        icon.style.border = '2px dashed rgba(102, 126, 234, 0.5)';
+    }
+});
+
+icon.addEventListener('dragleave', () => {
+    icon.style.background = '';
+    icon.style.border = '';
+});
+
+icon.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    icon.style.background = '';
+    icon.style.border = '';
+    
+    if (item.type !== 'folder') return;
+    
+    const dragId = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
+    if (!dragId) return;
+    
+    const draggedItem = currentDesktopItems.find(i => i.id == dragId);
+    if (!draggedItem || draggedItem.id === item.id) return;
+    
+    // Проверяем, не пытаемся ли перетащить папку в саму себя
+    if (draggedItem.type === 'folder') {
+        // Проверяем, не является ли папка родительской для этой папки
+        let parent = item;
+        while (parent) {
+            if (parent.id === draggedItem.id) {
+                return; // Нельзя перетащить родительскую папку в дочернюю
+            }
+            parent = currentDesktopItems.find(i => i.id === parent.parentId);
+        }
+    }
+    
+    // Удаляем старые координаты и устанавливаем parentId
+    delete draggedItem.x;
+    delete draggedItem.y;
+    draggedItem.parentId = item.id;
+    
+    saveToFirebase();
+    renderDesktop();
+    
+    // Если папка открыта - обновляем её содержимое
+    const folderWindow = document.querySelector(`[data-folder-id="${item.id}"]`);
+    if (folderWindow) {
+        const content = folderWindow.querySelector('.folder-content');
+        if (content) {
+            content.innerHTML = '';
+            const children = currentDesktopItems.filter(i => i.parentId === item.id);
+            children.forEach(child => {
+                const iconEl = createDesktopIcon(child);
+                iconEl.style.width = '70px';
+                content.appendChild(iconEl);
+            });
+        }
+    }
+});
     icon.onclick = (e) => {
         document.querySelectorAll('.desktop-icon').forEach(el => el.style.background = '');
         icon.style.background = 'rgba(255,255,255,0.1)';
@@ -1096,26 +1159,55 @@ function openFolderWindow(folder) {
         content.style.border = '';
     });
     content.addEventListener('drop', (e) => {
-        e.preventDefault();
-        content.style.background = '';
-        content.style.border = '';
-        const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
-        if (!id) return;
-        const item = currentDesktopItems.find(i => i.id == id);
-        if (item && item.id !== folder.id) {
-            delete item.x;
-            delete item.y;
-            item.parentId = folder.id;
-            saveToFirebase();
-            renderDesktop();
-            renderFolderContent();
-            const count = currentDesktopItems.filter(i => i.parentId === folder.id).length;
-            const span = win.querySelector('.folder-view-options span:last-child');
-            if (span) span.textContent = `${count} элементов`;
-        }
+    e.preventDefault();
+    e.stopPropagation();
+    content.style.background = '';
+    content.style.border = '';
+    
+    const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
+    if (!id) return;
+    
+    const item = currentDesktopItems.find(i => i.id == id);
+    if (!item || item.id === folder.id) {
         dragData = null;
-    });
-}
+        return;
+    }
+    
+    // Проверяем, не пытаемся ли перетащить папку в саму себя или в дочернюю
+    if (item.type === 'folder') {
+        let parent = folder;
+        while (parent) {
+            if (parent.id === item.id) {
+                dragData = null;
+                return; // Нельзя перетащить родительскую папку в дочернюю
+            }
+            parent = currentDesktopItems.find(i => i.id === parent.parentId);
+        }
+    }
+    
+    // УДАЛЯЕМ элемент из корня (если он там был) и перемещаем в папку
+    // Важно: НЕ дублируем, а ПЕРЕМЕЩАЕМ
+    delete item.x;
+    delete item.y;
+    item.parentId = folder.id;
+    
+    // Перемещаем элемент в массиве: удаляем из корня (если parentId был null)
+    // или из другой папки
+    if (item.parentId !== folder.id) {
+        // Если элемент был в другой папке или на рабочем столе, он уже обновлён
+        // Просто сохраняем изменения
+    }
+    
+    saveToFirebase();
+    renderDesktop();
+    renderFolderContent();
+    
+    const count = currentDesktopItems.filter(i => i.parentId === folder.id).length;
+    const span = win.querySelector('.folder-view-options span:last-child');
+    if (span) span.textContent = `${count} элементов`;
+    
+    dragData = null;
+});
 function formatSize(bytes) {
     if (bytes < 1024) return bytes + ' Б';
     if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' КБ';
@@ -1477,58 +1569,143 @@ document.addEventListener('dragover', (e) => e.preventDefault());
 
 document.addEventListener('drop', async (e) => {
     e.preventDefault();
-    const files = e.dataTransfer.files;
-    if (!files.length) return;
+    const items = e.dataTransfer.items;
+    if (!items || !items.length) return;
     const target = e.target.closest('#desktop') || e.target.closest('#desktop-icons');
     if (!target) return;
-    for (let file of files) {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                let content = event.target.result;
-                let url = null;
-                if (file.type.startsWith('image/')) {
-                    const formData = new FormData();
-                    formData.append('image', content.split(',')[1]);
-                    formData.append('key', IMGBB_KEY);
-                    const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
-                    const json = await res.json();
-                    if (json.success) {
-                        url = json.data.url;
-                        content = url;
+
+    const processEntry = async (entry, parentId = null) => {
+        if (entry.isFile) {
+            return new Promise((resolve) => {
+                entry.file(async (file) => {
+                    try {
+                        const reader = new FileReader();
+                        reader.onload = async (event) => {
+                            try {
+                                let content = event.target.result;
+                                let url = null;
+                                if (file.type.startsWith('image/')) {
+                                    const formData = new FormData();
+                                    formData.append('image', content.split(',')[1]);
+                                    formData.append('key', IMGBB_KEY);
+                                    const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+                                    const json = await res.json();
+                                    if (json.success) {
+                                        url = json.data.url;
+                                        content = url;
+                                    }
+                                }
+                                if (file.name.endsWith('.exe') || file.name.endsWith('.ky')) {
+                                    const text = await file.text();
+                                    currentDesktopItems.push({
+                                        id: Date.now() + Math.random(),
+                                        name: file.name,
+                                        type: 'file',
+                                        content: text,
+                                        url: null,
+                                        parentId: parentId
+                                    });
+                                } else {
+                                    currentDesktopItems.push({
+                                        id: Date.now() + Math.random(),
+                                        name: file.name,
+                                        type: 'file',
+                                        content: content,
+                                        url: url,
+                                        parentId: parentId
+                                    });
+                                }
+                                resolve();
+                            } catch (err) {
+                                console.error('Upload error:', err);
+                                resolve();
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                    } catch (err) {
+                        console.error('File read error:', err);
+                        resolve();
                     }
-                }
-                if (file.name.endsWith('.exe') || file.name.endsWith('.ky')) {
-                    const textReader = new FileReader();
-                    textReader.onload = (textEvent) => {
+                }, (err) => {
+                    console.error('File entry error:', err);
+                    resolve();
+                });
+            });
+        } else if (entry.isDirectory) {
+            const folderId = Date.now() + Math.random();
+            const dirReader = entry.createReader();
+            const entries = [];
+            const readEntries = () => {
+                dirReader.readEntries((results) => {
+                    if (results.length) {
+                        entries.push(...results);
+                        readEntries();
+                    } else {
+                        const folder = {
+                            id: folderId,
+                            name: entry.name,
+                            type: 'folder',
+                            parentId: parentId,
+                            children: []
+                        };
+                        currentDesktopItems.push(folder);
+                        Promise.all(entries.map(child => processEntry(child, folderId))).then(() => {
+                            renderDesktop();
+                            saveToFirebase();
+                        });
+                    }
+                }, (err) => {
+                    console.error('Directory read error:', err);
+                });
+            };
+            readEntries();
+            return;
+        }
+    };
+
+    for (let item of items) {
+        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+        if (entry) {
+            await processEntry(entry);
+        } else {
+            // Fallback для обычных файлов
+            const file = item.getAsFile();
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        let content = event.target.result;
+                        let url = null;
+                        if (file.type.startsWith('image/')) {
+                            const formData = new FormData();
+                            formData.append('image', content.split(',')[1]);
+                            formData.append('key', IMGBB_KEY);
+                            const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+                            const json = await res.json();
+                            if (json.success) {
+                                url = json.data.url;
+                                content = url;
+                            }
+                        }
                         currentDesktopItems.push({
                             id: Date.now() + Math.random(),
                             name: file.name,
                             type: 'file',
-                            content: textEvent.target.result,
-                            url: null
+                            content: content,
+                            url: url
                         });
                         renderDesktop();
                         saveToFirebase();
-                    };
-                    textReader.readAsText(file);
-                } else {
-                    currentDesktopItems.push({
-                        id: Date.now() + Math.random(),
-                        name: file.name,
-                        type: 'file',
-                        content: content,
-                        url: url
-                    });
-                    renderDesktop();
-                    saveToFirebase();
-                }
-            } catch (err) {
-                console.error('Upload error:', err);
+                    } catch (err) {
+                        console.error('Upload error:', err);
+                    }
+                };
+                reader.readAsDataURL(file);
             }
-        };
-        reader.readAsDataURL(file);
+        }
     }
+    renderDesktop();
+    saveToFirebase();
 });
 
 document.addEventListener('DOMContentLoaded', () => {
