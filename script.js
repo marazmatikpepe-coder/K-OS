@@ -501,10 +501,11 @@ function renderDesktop() {
     if (!container) return;
     container.innerHTML = '';
     currentDesktopItems.forEach(item => {
-        if (item.id === 'trash') return;
-        const icon = createDesktopIcon(item);
-        container.appendChild(icon);
-    });
+  if (item.id === 'trash') return;
+  if (item.parentId) return; // Не рендерим элементы внутри папок
+  const icon = createDesktopIcon(item);
+  container.appendChild(icon);
+});
     const explorerIcon = document.createElement('div');
     explorerIcon.className = 'desktop-icon explorer-icon';
     explorerIcon.setAttribute('data-id', 'explorer');
@@ -1158,55 +1159,98 @@ function openFolderWindow(folder) {
         content.style.background = '';
         content.style.border = '';
     });
-    content.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    content.style.background = '';
-    content.style.border = '';
+ content.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  content.style.background = '';
+  content.style.border = '';
+  
+  // Проверяем, есть ли файлы извне (с компьютера)
+  const items = e.dataTransfer.items;
+  if (items && items.length > 0) {
+    const firstItem = items[0];
+    const entry = firstItem.webkitGetAsEntry ? firstItem.webkitGetAsEntry() : null;
     
-    const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
-    if (!id) return;
-    
-    const item = currentDesktopItems.find(i => i.id == id);
-    if (!item || item.id === folder.id) {
+    // Если это файл с компьютера (не из K-OS)
+    if (entry && entry.isFile) {
+      for (let i = 0; i < items.length; i++) {
+        const fileEntry = items[i].webkitGetAsEntry();
+        if (fileEntry && fileEntry.isFile) {
+          await new Promise((resolve) => {
+            fileEntry.file(async (file) => {
+              const reader = new FileReader();
+              reader.onload = async (event) => {
+                let content = event.target.result;
+                let url = null;
+                
+                if (file.type.startsWith('image/')) {
+                  const formData = new FormData();
+                  formData.append('image', content.split(',')[1]);
+                  formData.append('key', IMGBB_KEY);
+                  const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+                  const json = await res.json();
+                  if (json.success) {
+                    url = json.data.url;
+                    content = url;
+                  }
+                }
+                
+                currentDesktopItems.push({
+                  id: Date.now() + Math.random(),
+                  name: file.name,
+                  type: 'file',
+                  content: content,
+                  url: url,
+                  parentId: folder.id // Сохраняем в папку
+                });
+                resolve();
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+        }
+      }
+      saveToFirebase();
+      renderDesktop();
+      renderFolderContent();
+      dragData = null;
+      return;
+    }
+  }
+  
+  // Обработка перетаскивания из K-OS
+  const id = e.dataTransfer.getData('text/plain') || (dragData ? dragData.id : null);
+  if (!id) return;
+  const item = currentDesktopItems.find(i => i.id == id);
+  if (!item || item.id === folder.id) {
+    dragData = null;
+    return;
+  }
+  
+  // Проверяем, не пытаемся ли перетащить папку в саму себя
+  if (item.type === 'folder') {
+    let parent = folder;
+    while (parent) {
+      if (parent.id === item.id) {
         dragData = null;
         return;
+      }
+      parent = currentDesktopItems.find(i => i.id === parent.parentId);
     }
-    
-    // Проверяем, не пытаемся ли перетащить папку в саму себя или в дочернюю
-    if (item.type === 'folder') {
-        let parent = folder;
-        while (parent) {
-            if (parent.id === item.id) {
-                dragData = null;
-                return; // Нельзя перетащить родительскую папку в дочернюю
-            }
-            parent = currentDesktopItems.find(i => i.id === parent.parentId);
-        }
-    }
-    
-    // УДАЛЯЕМ элемент из корня (если он там был) и перемещаем в папку
-    // Важно: НЕ дублируем, а ПЕРЕМЕЩАЕМ
-    delete item.x;
-    delete item.y;
-    item.parentId = folder.id;
-    
-    // Перемещаем элемент в массиве: удаляем из корня (если parentId был null)
-    // или из другой папки
-    if (item.parentId !== folder.id) {
-        // Если элемент был в другой папке или на рабочем столе, он уже обновлён
-        // Просто сохраняем изменения
-    }
-    
-    saveToFirebase();
-    renderDesktop();
-    renderFolderContent();
-    
-    const count = currentDesktopItems.filter(i => i.parentId === folder.id).length;
-    const span = win.querySelector('.folder-view-options span:last-child');
-    if (span) span.textContent = `${count} элементов`;
-    
-    dragData = null;
+  }
+  
+  delete item.x;
+  delete item.y;
+  item.parentId = folder.id;
+  
+  saveToFirebase();
+  renderDesktop();
+  renderFolderContent();
+  
+  const count = currentDesktopItems.filter(i => i.parentId === folder.id).length;
+  const span = win.querySelector('.folder-view-options span:last-child');
+  if (span) span.textContent = `${count} элементов`;
+  dragData = null;
 });
 }
 function getItemSize(item) {
@@ -1627,35 +1671,41 @@ document.addEventListener('drop', async (e) => {
                 });
             });
         } else if (entry.isDirectory) {
-            const folderId = Date.now() + Math.random();
-            const dirReader = entry.createReader();
-            const entries = [];
-            const readEntries = () => {
-                dirReader.readEntries((results) => {
-                    if (results.length) {
-                        entries.push(...results);
-                        readEntries();
-                    } else {
-                        const folder = {
-                            id: folderId,
-                            name: entry.name,
-                            type: 'folder',
-                            parentId: parentId,
-                            children: []
-                        };
-                        currentDesktopItems.push(folder);
-                        Promise.all(entries.map(child => processEntry(child, folderId))).then(() => {
-                            renderDesktop();
-                            saveToFirebase();
-                        });
-                    }
-                }, (err) => {
-                    console.error('Directory read error:', err);
-                });
-            };
-            readEntries();
-            return;
+  const folderId = Date.now() + Math.random();
+  const dirReader = entry.createReader();
+  const entries = [];
+  
+  const readEntries = () => {
+    dirReader.readEntries(async (results) => {
+      if (results.length) {
+        entries.push(...results);
+        readEntries();
+      } else {
+        // Создаем папку
+        const folder = {
+          id: folderId,
+          name: entry.name,
+          type: 'folder',
+          parentId: parentId
+        };
+        currentDesktopItems.push(folder);
+        
+        // Рекурсивно обрабатываем содержимое папки
+        for (const child of entries) {
+          await processEntry(child, folderId);
         }
+        
+        renderDesktop();
+        saveToFirebase();
+      }
+    }, (err) => {
+      console.error('Directory read error:', err);
+    });
+  };
+  
+  readEntries();
+  return;
+}
     };
 
     for (let item of items) {
