@@ -479,13 +479,17 @@ function showTaskbarContextMenu(x, y, appData, item) {
 }
 
 function focusWindow(win) {
-    if (focusedWindow && focusedWindow !== win) {
-        focusedWindow.classList.remove('focused');
-    }
-    focusedWindow = win;
-    win.classList.add('focused');
-    bringToFront(win);
-    renderTaskbar();
+  if (win.dataset.minimized === 'true') {
+    win.style.display = 'flex';
+    win.dataset.minimized = 'false';
+  }
+  if (focusedWindow && focusedWindow !== win) {
+    focusedWindow.classList.remove('focused');
+  }
+  focusedWindow = win;
+  win.classList.add('focused');
+  bringToFront(win);
+  renderTaskbar();
 }
 
 function unfocusWindow(win) {
@@ -1119,9 +1123,10 @@ function closeWindow(win) {
 }
 
 function minimizeWindow(win) {
-    win.style.display = 'none';
-    if (focusedWindow === win) focusedWindow = null;
-    renderTaskbar();
+  win.style.display = 'none';
+  win.dataset.minimized = 'true';
+  if (focusedWindow === win) focusedWindow = null;
+  renderTaskbar();
 }
 
 function toggleMaximize(win) {
@@ -2191,13 +2196,25 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Alt' && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
-        e.preventDefault();
-        const menu = document.getElementById('start-menu');
-        if (menu) {
-            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-        }
+  // Alt+F11 - полный экран
+  if (e.key === 'F11' && e.altKey) {
+    e.preventDefault();
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
     }
+    return;
+  }
+  
+  // Alt - открыть Пуск (но не в полном экране)
+  if (e.key === 'Alt' && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+    e.preventDefault();
+    const menu = document.getElementById('start-menu');
+    if (menu) {
+      menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+  }
 });
 
 function addTaskbarContextMenu() {
