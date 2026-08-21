@@ -1122,10 +1122,22 @@ function closeWindow(win) {
     }, 200);
 }
 
-function minimizeWindow(win) {
-  win.style.display = 'none';
-  win.dataset.minimized = 'true';
-  if (focusedWindow === win) focusedWindow = null;
+function focusWindow(win) {
+  // Если окно было свернуто, разворачиваем его обратно
+  if (win.dataset.minimized === 'true') {
+    win.style.display = 'flex';
+    win.dataset.minimized = 'false';
+  }
+  
+  // Снимаем фокус с предыдущего окна
+  if (focusedWindow && focusedWindow !== win) {
+    focusedWindow.classList.remove('focused');
+  }
+  
+  // Делаем текущее окно активным и поднимаем наверх
+  focusedWindow = win;
+  win.classList.add('focused');
+  bringToFront(win);
   renderTaskbar();
 }
 
