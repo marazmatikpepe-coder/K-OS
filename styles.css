@@ -678,15 +678,15 @@ body.power-saving-mode * {
 
 /* ========== ТРЕЙ: WIFI/ГРОМКОСТЬ + ЧАСЫ ========== */
 .tray-island {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 900;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 16px;
-    cursor: default;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  cursor: default;
 }
 
 .tray-icon-btn {
@@ -729,13 +729,13 @@ body.power-saving-mode * {
 
 /* ========== ЦЕНТР УПРАВЛЕНИЯ ========== */
 .control-center {
-    position: fixed;
-    bottom: 78px;
-    right: 20px;
-    width: 320px;
-    z-index: 950;
-    padding: 18px;
-    animation: slideUp 0.25s ease;
+  position: fixed;
+  bottom: 78px;
+  right: 20px;
+  width: 320px;
+  z-index: 99997;
+  padding: 18px;
+  animation: slideUp 0.25s ease;
 }
 
 .cc-toggles {
@@ -897,15 +897,15 @@ body.power-saving-mode * {
 
 /* ========== ПОГОДА ========== */
 .weather-island {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    z-index: 900;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 16px;
-    cursor: pointer;
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
 }
 
 .weather-icon {
@@ -1014,14 +1014,14 @@ body.power-saving-mode * {
 
 /* ========== СТАРТ МЕНЮ ========== */
 .start-menu {
-    position: absolute;
-    bottom: 90px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 380px;
-    padding: 20px;
-    z-index: 200;
-    animation: slideUp 0.3s ease;
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 380px;
+  padding: 20px;
+  z-index: 99999;
+  animation: slideUp 0.3s ease;
 }
 
 @keyframes slideUp {
