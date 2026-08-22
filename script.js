@@ -478,20 +478,6 @@ function showTaskbarContextMenu(x, y, appData, item) {
     });
 }
 
-function focusWindow(win) {
-  if (win.dataset.minimized === 'true') {
-    win.style.display = 'flex';
-    win.dataset.minimized = 'false';
-  }
-  if (focusedWindow && focusedWindow !== win) {
-    focusedWindow.classList.remove('focused');
-  }
-  focusedWindow = win;
-  win.classList.add('focused');
-  bringToFront(win);
-  renderTaskbar();
-}
-
 function unfocusWindow(win) {
     if (focusedWindow === win) {
         focusedWindow = null;
